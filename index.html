@@ -169,7 +169,8 @@ details.more summary::-webkit-details-marker{display:none}
   <div class="sec">
     <h3>저장 · 동기화 <span class="badge" id="syncBadge">이 기기에만</span></h3>
     <div class="acct" id="acctInfo" hidden><span id="acctEmail"></span><button class="link gray" id="btnLogout">로그아웃</button></div>
-    <div id="nickWrap" hidden><div class="lbl">닉네임</div><input type="text" id="nickInput" maxlength="20" placeholder="예: 세혁"></div>
+    <div id="nickWrap" hidden><div class="lbl">닉네임</div><input type="text" id="nickInput" maxlength="20" placeholder="예: 세혁">
+      <div style="text-align:right;margin-top:8px"><button class="link" id="btnDelAcct">계정 삭제</button></div></div>
   </div>
 
   <div class="sec">
@@ -1204,8 +1205,9 @@ function postMeta(p) {
 }
 const cloudSettings = () => { const o = { ...S }; delete o.aiToken; return { S: o, lastStyle }; };
 
+let deletingAcct = false;
 function scheduleSave() {
-  if (!user || loadingCloud) return;
+  if (!user || loadingCloud || deletingAcct) return;
   if (saving) { dirtyAgain = true; return; }
   clearTimeout(saveTimer); saveTimer = setTimeout(saveAll, 700);
 }
@@ -1381,6 +1383,8 @@ const AUTH_MSG = {
   'auth/user-not-found': '가입되지 않은 이메일이에요',
   'auth/too-many-requests': '시도가 너무 많아요. 잠시 후 다시 해주세요',
   'auth/missing-password': '비밀번호를 입력해주세요',
+  'auth/user-mismatch': '로그인한 계정과 다른 계정을 선택했어요',
+  'auth/requires-recent-login': '보안을 위해 다시 로그인한 뒤 시도해주세요',
 };
 const authErr = e => toast(AUTH_MSG[e.code] || ('오류: ' + (e.code || e.message)));
 async function emailAuth(join) {
@@ -1404,6 +1408,47 @@ $('btnEmReset').onclick = async () => {
 $('btnLogin').onclick = () => {
   if (!db) { toast('Firebase 설정이 아직 비어 있어요 (FIREBASE_CONFIG)'); return; }
   login();
+};
+// 계정 삭제: 본인 확인 → 내 게시물·사진·닉네임·설정 삭제 → 계정 삭제
+async function reauth() {
+  const prov = (user.providerData[0] || {}).providerId;
+  if (prov === 'google.com') {
+    await user.reauthenticateWithPopup(new firebase.auth.GoogleAuthProvider());
+  } else {
+    const pw = prompt('본인 확인을 위해 비밀번호를 다시 입력해주세요');
+    if (pw === null) throw { code: 'cancel' };
+    await user.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(user.email, pw));
+  }
+}
+async function deleteWhere(name) {
+  const snap = await col(name).where('owner', '==', user.uid).get();
+  const docs = snap.docs;
+  for (let i = 0; i < docs.length; i += 20) await Promise.all(docs.slice(i, i + 20).map(d => d.ref.delete()));
+  return docs.length;
+}
+$('btnDelAcct').onclick = async () => {
+  if (!user) return;
+  if (!confirm('계정을 삭제하면 내 게시물·사진·닉네임·설정이 모두 지워지고 되돌릴 수 없어요.\n계속할까요?')) return;
+  if ((prompt('확인을 위해 "삭제"라고 입력해주세요') || '').trim() !== '삭제') { toast('계정 삭제를 취소했어요'); return; }
+  try { await reauth(); }
+  catch (e) { if (e.code !== 'cancel' && e.code !== 'auth/popup-closed-by-user') authErr(e); return; }
+  deletingAcct = true; clearTimeout(saveTimer);
+  if (unsubPosts) unsubPosts(); if (unsubProfiles) unsubProfiles(); unsubPosts = unsubProfiles = null;
+  try {
+    toast('삭제하는 중…');
+    await deleteWhere('images');
+    await deleteWhere('posts');
+    await Promise.all([
+      col('profiles').doc(user.uid).delete(),
+      userCol('meta').doc('settings').delete(),
+      userCol('meta').doc('logo').delete(),
+    ]);
+    await user.delete();
+    try { localStorage.removeItem('cnm_logo'); } catch (e) {}
+    toast('계정을 삭제했어요');
+  } catch (e) {
+    console.error(e); toast('삭제 중 오류: ' + (e.code || e.message));
+  } finally { deletingAcct = false; }
 };
 $('btnLogout').onclick = async () => {
   if (!confirm('로그아웃할까요? 이 기기 화면에서만 지워지고, 저장된 작업은 그대로 남아요.')) return;
