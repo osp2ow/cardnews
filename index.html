@@ -1,0 +1,1002 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>카드뉴스 메이커</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Do+Hyeon&family=Gothic+A1:wght@800&family=Noto+Sans+KR:wght@900&family=Noto+Serif+KR:wght@900&family=Nanum+Myeongjo:wght@800&family=Gowun+Batang:wght@700&family=Noto+Sans+JP:wght@900&family=Dela+Gothic+One&family=Zen+Maru+Gothic:wght@700&family=Zen+Old+Mincho:wght@900&family=Inter:wght@800&family=Playfair+Display:wght@800&family=Anton&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{--bg:#000;--panel:#0b0b0b;--card:#121212;--line:#242424;--line2:#363636;--text:#ececec;--muted:#8a8a8a;--danger:#ff5d5d}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Pretendard,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.app{display:flex;min-height:100vh}
+aside{width:340px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--line);padding:22px 18px 30px;overflow-y:auto;height:100vh;position:sticky;top:0}
+main{flex:1;min-width:0;padding:24px 28px 60px}
+@media(max-width:860px){.app{flex-direction:column}aside{width:100%;height:auto;position:static;border-right:0;border-bottom:1px solid var(--line)}main{padding:16px 16px 60px}}
+.sec{margin-bottom:24px}
+.sec h3{font-size:13px;font-weight:700;margin:0 0 10px;display:flex;justify-content:space-between;align-items:center}
+.lbl{font-size:12px;color:var(--muted);margin:12px 0 6px;display:flex;justify-content:space-between}
+.btn{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;height:44px;border-radius:12px;border:1px solid var(--line2);background:transparent;color:var(--text);font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+.btn:hover{background:#161616}
+.btn.primary{background:#e9e9e9;color:#000;border-color:#e9e9e9}
+.btn.primary:hover{background:#fff}
+.btn:disabled{opacity:.4;cursor:not-allowed;background:transparent}
+.btn.primary:disabled{background:#e9e9e9}
+.btn+.btn{margin-top:8px}
+.link{background:none;border:0;color:var(--danger);font:inherit;font-size:12px;cursor:pointer;padding:0}
+select,textarea,input[type=text],input[type=password]{width:100%;background:#050505;border:1px solid var(--line2);border-radius:12px;color:var(--text);font:inherit;font-size:14px;padding:11px 12px;outline:none}
+select:focus,textarea:focus,input[type=text]:focus,input[type=password]:focus{border-color:#666}
+textarea{resize:vertical;min-height:92px;line-height:1.5}
+textarea:disabled{opacity:.4}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line2);border-radius:12px;padding:3px;gap:3px}
+.seg button{background:transparent;border:0;color:var(--text);font:inherit;font-size:13px;padding:8px 0;cursor:pointer;border-radius:9px}
+.seg button.on{background:#e9e9e9;color:#000;font-weight:700}
+.posrow{display:grid;grid-template-columns:34px 1fr;align-items:center;gap:8px;margin-bottom:6px}
+.posrow span{font-size:12px;color:var(--muted)}
+input[type=range]{width:100%;accent-color:#e9e9e9}
+input[type=color]{width:100%;height:40px;border:1px solid var(--line2);border-radius:10px;background:transparent;padding:3px;cursor:pointer}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.check{display:flex;align-items:center;gap:8px;font-size:13px;margin-top:12px;cursor:pointer}
+.check input{accent-color:#e9e9e9;width:16px;height:16px}
+.badge{font-size:10.5px;padding:2px 7px;border-radius:6px;background:#1f1f1f;color:var(--muted);font-weight:600}
+.badge.sel{background:#e9e9e9;color:#000}
+.logoprev{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.logoprev img{height:36px;max-width:120px;object-fit:contain;background:repeating-conic-gradient(#222 0 25%,#151515 0 50%) 0 0/12px 12px;border-radius:6px;padding:3px}
+
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;gap:12px;flex-wrap:wrap}
+.topbar h2{font-size:15px;margin:0;font-weight:700}
+.topbar .sub{font-size:12px;color:var(--muted);margin-left:8px;font-weight:500}
+.empty{border:1px dashed var(--line2);border-radius:16px;height:62vh;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);gap:14px;text-align:center;padding:20px}
+.empty .t{letter-spacing:.25em;font-size:12px}
+.dropping{outline:2px dashed #888;outline-offset:6px;border-radius:12px}
+
+.posts{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:22px;align-items:start}
+.post{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden;transition:border-color .15s,box-shadow .15s}
+.post.sel{border-color:#cfcfcf;box-shadow:0 0 0 1px #cfcfcf}
+.post.drop{border-color:#4a9eff;box-shadow:0 0 0 1px #4a9eff}
+.pimg{position:relative;cursor:pointer;background:#0a0a0a}
+.pimg canvas{width:100%;height:auto;display:block;aspect-ratio:4/5}
+.ptools{position:absolute;top:10px;right:10px;display:flex;gap:6px}
+.ptools button{width:36px;height:36px;border-radius:50%;border:0;background:rgba(20,20,20,.75);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px)}
+.ptools button:hover{background:#000}
+.ptools svg{width:18px;height:18px}
+.pnum{position:absolute;bottom:10px;right:10px;background:rgba(0,0,0,.6);color:#fff;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px}
+.pbar{display:flex;align-items:center;gap:14px;padding:12px 14px 6px;color:#ddd}
+.pbar .sp{flex:1}
+svg.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round;stroke-linecap:round}
+.pcap{padding:2px 14px 10px;font-size:13px;line-height:1.5;color:#cfcfcf;cursor:pointer}
+.pcap .txt{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap;word-break:break-word}
+.pcap.open .txt{display:block}
+.pcap b{color:#fff;margin-right:5px}
+.pcap .ph{color:var(--muted)}
+.pcap .more{color:var(--muted);font-size:12px;margin-top:2px}
+.pthumbs{display:flex;gap:8px;padding:10px 14px 12px;border-top:1px solid var(--line);overflow-x:auto;background:#0e0e0e}
+.thumb{position:relative;flex-shrink:0;width:64px;border-radius:8px;overflow:hidden;cursor:pointer;outline:2px solid transparent;outline-offset:-2px}
+.thumb.on{outline-color:#e9e9e9}
+.thumb canvas{width:64px;height:80px;display:block}
+.thumb .x{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;border:0;background:rgba(0,0,0,.75);color:#fff;font-size:10px;cursor:pointer;display:none;line-height:18px;padding:0}
+.thumb:hover .x{display:block}
+@media(hover:none){.thumb .x{display:block}}
+.padd{flex-shrink:0;width:64px;height:80px;border:1px dashed var(--line2);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);font-size:10px;font-weight:700;letter-spacing:.1em;cursor:pointer;gap:2px}
+.padd b{font-size:22px;font-weight:300;letter-spacing:0;line-height:1}
+.padd:hover{border-color:#777;color:#ccc}
+.ptools button.on{background:#e9e9e9;color:#000}
+.ptools .aa{font:800 14px Pretendard,sans-serif}
+.tpanel{padding:4px 14px 14px;border-top:1px solid var(--line);background:#0e0e0e;cursor:default}
+.tpanel .lbl{margin:10px 0 5px}
+.tpanel textarea{min-height:72px}
+.tpanel select,.tpanel textarea{font-size:13px;padding:9px 10px;border-radius:10px}
+.tpanel .seg{border-radius:10px}
+.tpanel .seg button{padding:6px 0;font-size:12px;border-radius:7px}
+.tpanel input[type=color]{height:34px}
+.tpanel .check{margin-top:10px}
+.tpanel .applyall{margin-top:12px;height:38px;font-size:13px}
+.vsel{padding:12px 14px 0}
+.vsel .seg button{padding:6px 0;font-size:12px}
+.capnote{padding:12px 14px 0;font-size:12px;color:#4a9eff}
+.thumb .tag{position:absolute;left:3px;bottom:3px;background:#4a9eff;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px}
+.thumb .tag.ai{background:#e9e9e9;color:#000}
+.pstatus.idle{cursor:pointer;color:#bbb}
+.pstatus.idle:hover,.pstatus.done:hover,.pstatus.err:hover{background:#151515}
+.pstatus.run{color:#e9e9e9;letter-spacing:.04em}
+.pstatus.done{color:#7bd88f;cursor:pointer}
+.pstatus.err{color:var(--danger);cursor:pointer}
+.spin{width:13px;height:13px;border:2px solid #444;border-top-color:#eee;border-radius:50%;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.capsrc{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.capthumb{position:relative;width:56px;height:56px;border-radius:8px;overflow:hidden;border:1px solid var(--line2)}
+.capthumb canvas{width:56px;height:56px;display:block}
+.capthumb button{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;border:0;background:rgba(0,0,0,.75);color:#fff;font-size:10px;cursor:pointer;padding:0;line-height:18px}
+.capadd{height:56px;padding:0 14px;border:1px dashed var(--line2);border-radius:8px;display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;cursor:pointer;background:none;font-family:inherit}
+.capadd:hover{border-color:#777;color:#ccc}
+.capadd:disabled{opacity:.4;cursor:not-allowed}
+.caprow{display:flex;gap:8px;margin-top:10px}
+.caprow .btn{margin:0}
+.caprow .undo{width:auto;padding:0 14px;flex-shrink:0}
+.capsec.dropping{outline:2px dashed #888;outline-offset:6px;border-radius:12px}
+details.more{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+details.more summary{font-size:12px;color:var(--muted);cursor:pointer;list-style:none}
+details.more summary::-webkit-details-marker{display:none}
+.pstatus{display:flex;align-items:center;justify-content:center;gap:6px;padding:12px;color:#5f5f5f;font-size:12px;letter-spacing:.12em;border-top:1px solid var(--line)}
+
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+.modal.open{display:flex}
+.mbox{background:#0b0b0b;border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;gap:18px;max-height:96vh;max-width:980px;width:100%;overflow:auto}
+.mbox canvas{height:min(80vh,720px);width:auto;aspect-ratio:4/5;border-radius:8px;cursor:grab;touch-action:none;max-width:100%;flex-shrink:0;background:#111}
+.mbox canvas:active{cursor:grabbing}
+.mside{flex:1;min-width:220px;display:flex;flex-direction:column}
+.mside h4{margin:2px 0 4px;font-size:15px}
+.mside .grow{flex:1}
+@media(max-width:760px){.mbox{flex-direction:column}.mbox canvas{height:auto;width:100%}}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#eee;color:#000;padding:10px 18px;border-radius:24px;font-size:13px;font-weight:600;opacity:0;transition:.25s;pointer-events:none;z-index:99}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="app">
+<aside>
+  <div class="sec">
+    <h3>작성 언어 설정</h3>
+    <select id="lang">
+      <option value="ko">한국어</option>
+      <option value="ja">日本語 (일본어)</option>
+      <option value="en">English (영어)</option>
+    </select>
+  </div>
+
+  <div class="sec">
+    <h3>데이터 입력</h3>
+    <button class="btn" id="btnUpload">🖼️ 이미지 업로드</button>
+    <button class="btn" id="btnClear">🗑️ 목록 비우기</button>
+    <input type="file" id="fileImgs" accept="image/*,.png,.PNG,.jpg,.jpeg,.webp,.gif,.bmp,.heic" multiple hidden>
+    <input type="file" id="fileSwap" accept="image/*,.png,.PNG,.jpg,.jpeg,.webp,.gif,.bmp,.heic" hidden>
+    <input type="file" id="fileAdd" accept="image/*,.png,.PNG,.jpg,.jpeg,.webp,.gif,.bmp,.heic" multiple hidden>
+  </div>
+
+  <div class="sec">
+    <h3>로고 설정 <button class="link" id="btnLogoDel" hidden>제거</button></h3>
+    <div class="logoprev" id="logoPrev" hidden><img id="logoImgPrev" alt=""></div>
+    <button class="btn" id="btnLogo">로고 업로드</button>
+    <input type="file" id="fileLogo" accept="image/*,.png,.PNG,.jpg,.jpeg,.webp,.gif,.bmp,.heic" hidden>
+    <div class="lbl">로고 위치</div>
+    <div class="posrow"><span>상단</span><div class="seg" data-key="logoPos"><button data-val="tl">왼쪽</button><button data-val="tc">중간</button><button data-val="tr">오른쪽</button></div></div>
+    <div class="posrow"><span>하단</span><div class="seg" data-key="logoPos"><button data-val="bl">왼쪽</button><button data-val="bc">중간</button><button data-val="br">오른쪽</button></div></div>
+    <div class="lbl">로고 크기 <span data-out="logoSize"></span></div>
+    <input type="range" min="6" max="40" step="1" data-bind="logoSize">
+    <label class="check"><input type="checkbox" data-bind="logoAll"> 모든 장에 로고 표시</label>
+  </div>
+
+  <div class="sec capsec" id="capSec">
+    <h3>캡션 내용 <span class="badge" id="selBadge">게시물 없음</span></h3>
+    <textarea id="caption" placeholder="캡션에 넣을 문구를 붙여넣거나, 아래에 캡처 이미지를 첨부하세요. 영어는 번역하고, 한국어는 다듬어서 캡션으로 만들어 드려요." style="min-height:140px" disabled></textarea>
+    <div class="capsrc" id="capSrc"></div>
+    <input type="file" id="fileCap" accept="image/*,.png,.PNG,.jpg,.jpeg,.webp,.gif,.bmp,.heic" multiple hidden>
+    <div class="caprow">
+      <button class="btn primary" id="btnCap" disabled>✨ Claude로 캡션 만들기</button>
+      <button class="btn undo" id="btnCapUndo" hidden>되돌리기</button>
+    </div>
+    <div class="lbl">계정 이름</div>
+    <input type="text" data-bind="account" placeholder="your.account">
+  </div>
+
+  <div class="sec" id="aiSec">
+    <h3>AI 연결 (Claude) <span class="badge" id="aiBadge">미확인</span></h3>
+    <div class="lbl">Worker 주소</div>
+    <input type="text" data-bind="aiUrl" placeholder="https://cardnews-ai.xxx.workers.dev">
+    <div class="lbl">접속 코드</div>
+    <input type="password" data-bind="aiToken">
+    <label class="check"><input type="checkbox" data-bind="capSlide"> 2번째 장 = 캡션 캡처</label>
+    <label class="check"><input type="checkbox" data-bind="credit"> 캡션에 원본 출처 표기</label>
+    <button class="btn" id="btnPing" style="margin-top:12px">연결 테스트</button>
+    <details class="more">
+      <summary>▸ 이미지 AI (Gemini · 선택)</summary>
+      <div class="lbl">이미지 화질</div>
+      <div class="seg" data-key="aiSize" style="grid-template-columns:1fr 1fr"><button data-val="1K">1K (저렴)</button><button data-val="2K">2K (고화질)</button></div>
+      <label class="check"><input type="checkbox" data-bind="aiClean"> 텍스트 제거</label>
+      <label class="check"><input type="checkbox" data-bind="aiRegen"> 미세 재생성</label>
+    </details>
+  </div>
+
+  <button class="btn" id="btnAI" disabled>⚡ AI 변환 (전체)</button>
+  <button class="btn primary" id="btnZip" disabled>⬇ 전체 다운로드 (ZIP)</button>
+</aside>
+
+<main id="main">
+  <div class="topbar">
+    <h2>최종 결과 미리보기<span class="sub">1080 × 1350 · <span id="count">게시물 0개</span></span></h2>
+  </div>
+  <div id="empty" class="empty">
+    <div style="font-size:30px;opacity:.6">⧉</div>
+    <div class="t">NO ITEMS TO PROCESS</div>
+    <div style="font-size:13px">왼쪽에서 이미지를 업로드하거나, 끌어다 놓거나, 캡처 후 붙여넣기(Ctrl+V) 하세요</div>
+  </div>
+  <div class="posts" id="posts"></div>
+</main>
+</div>
+
+<div class="modal" id="modal">
+  <div class="mbox">
+    <canvas id="mCanvas" width="1080" height="1350"></canvas>
+    <div class="mside">
+      <h4 id="mTitle"></h4>
+      <div class="lbl">확대 <span id="mZoomOut"></span></div>
+      <input type="range" id="mZoom" min="1" max="2.5" step="0.01">
+      <div id="mCoverWrap" hidden>
+        <div class="lbl">표지 문구</div>
+        <textarea id="mCover" style="min-height:80px"></textarea>
+      </div>
+      <div class="grow"></div>
+      <div class="two" style="margin-top:14px">
+        <button class="btn" id="mPrev">◀ 앞으로</button>
+        <button class="btn" id="mNext" style="margin-top:0">뒤로 ▶</button>
+      </div>
+      <button class="btn" id="mReset" style="margin-top:8px">위치 초기화</button>
+      <button class="btn" id="mDown">이 장만 다운로드</button>
+      <button class="btn" id="mDel" style="color:var(--danger)">이 장 삭제</button>
+      <button class="btn primary" id="mClose">닫기</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const W = 1080, H = 1350;
+const FONTS = [
+  { id: 'Pretendard',        label: 'Pretendard (프리텐다드)', w: 800, g: '한국어' },
+  { id: 'Black Han Sans',    label: '검은고딕 (Black Han Sans)', w: 400, g: '한국어' },
+  { id: 'Do Hyeon',          label: '도현체 (Do Hyeon)', w: 400, g: '한국어' },
+  { id: 'Gothic A1',         label: 'Gothic A1', w: 800, g: '한국어' },
+  { id: 'Noto Sans KR',      label: 'Noto Sans KR', w: 900, g: '한국어' },
+  { id: 'Noto Serif KR',     label: 'Noto Serif KR (명조)', w: 900, g: '한국어' },
+  { id: 'Nanum Myeongjo',    label: '나눔명조', w: 800, g: '한국어' },
+  { id: 'Gowun Batang',      label: '고운바탕', w: 700, g: '한국어' },
+  { id: 'Noto Sans JP',      label: 'Noto Sans JP', w: 900, g: '日本語' },
+  { id: 'Dela Gothic One',   label: 'Dela Gothic One', w: 400, g: '日本語' },
+  { id: 'Zen Maru Gothic',   label: 'Zen Maru Gothic (둥근)', w: 700, g: '日本語' },
+  { id: 'Zen Old Mincho',    label: 'Zen Old Mincho (명조)', w: 900, g: '日本語' },
+  { id: 'Inter',             label: 'Inter', w: 800, g: 'English' },
+  { id: 'Playfair Display',  label: 'Playfair Display', w: 800, g: 'English' },
+  { id: 'Anton',             label: 'Anton', w: 400, g: 'English' },
+];
+const DEFAULT_FONT = { ko: 'Pretendard', ja: 'Noto Sans JP', en: 'Inter' };
+const DEFAULTS = { lang: 'ko', logoPos: 'tl', logoSize: 16, logoAll: true, account: '',
+  aiUrl: '', aiToken: '', aiSize: '1K', aiClean: false, aiRegen: false, capSlide: true, credit: true };
+const STYLE_DEFAULT = {
+  font: 'Pretendard', fontSize: 96, tracking: -3, textPos: 'bottom', align: 'center',
+  textColor: '#ffffff', accent: '#ffd84a', overlay: 0.7, shadow: true
+};
+// 새 게시물은 마지막으로 편집한 스타일을 이어받음
+let lastStyle = { ...STYLE_DEFAULT };
+try { Object.assign(lastStyle, JSON.parse(localStorage.getItem('cnm_style') || '{}')); } catch (e) {}
+const saveStyle = st => { lastStyle = { ...st }; try { localStorage.setItem('cnm_style', JSON.stringify(lastStyle)); } catch (e) {} };
+let S = { ...DEFAULTS };
+try { Object.assign(S, JSON.parse(localStorage.getItem('cnm_settings') || '{}')); } catch (e) {}
+['coverText','caption','font','fontSize','tracking','textPos','align','textColor','accent','overlay','shadow'].forEach(k => delete S[k]);
+const save = () => { try { localStorage.setItem('cnm_settings', JSON.stringify(S)); } catch (e) {} };
+
+let posts = [];          // [{ id, coverText, caption, slides:[slide], active }]
+let selIdx = -1;         // 선택된 게시물
+let logo = null, logoSrc = null;
+const $ = id => document.getElementById(id);
+const uid = () => Math.random().toString(36).slice(2);
+const pad = n => String(n).padStart(2, '0');
+
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2000);
+}
+const loadImg = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+const readAsDataURL = f => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); });
+async function decodeImage(f) {
+  if (window.createImageBitmap) { try { return await createImageBitmap(f); } catch (e) {} }
+  try { return await loadImg(await readAsDataURL(f)); } catch (e) {}
+  const url = URL.createObjectURL(f);
+  try { return await loadImg(url); } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
+}
+const iW = img => img.naturalWidth || img.width;
+const iH = img => img.naturalHeight || img.height;
+const isImageFile = f => (f.type || '').startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp|avif|heic|heif)$/i.test(f.name || '');
+const fontOf = id => FONTS.find(f => f.id === id) || FONTS[0];
+
+const IC = {
+  heart: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 20.5s-7.6-4.6-9.4-9.2A5.2 5.2 0 0 1 12 6.6a5.2 5.2 0 0 1 9.4 4.7c-1.8 4.6-9.4 9.2-9.4 9.2z"/></svg>',
+  comment: '<svg class="ic" viewBox="0 0 24 24"><path d="M20.5 11.5a8.5 8.5 0 0 1-12.4 7.6L3.5 20.5l1.4-4.6A8.5 8.5 0 1 1 20.5 11.5z"/></svg>',
+  repost: '<svg class="ic" viewBox="0 0 24 24"><path d="M17 3l3.5 3.5L17 10M3.5 11V9.5a3 3 0 0 1 3-3h14M7 21l-3.5-3.5L7 14M20.5 13v1.5a3 3 0 0 1-3 3h-14"/></svg>',
+  send: '<svg class="ic" viewBox="0 0 24 24"><path d="M21.5 3L10 14M21.5 3l-7 18.5-4.5-7.5L2.5 9.5z"/></svg>',
+  save: '<svg class="ic" viewBox="0 0 24 24"><path d="M18.5 21l-6.5-5-6.5 5V4.5a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1z"/></svg>',
+  trash: '<svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M5.5 7l1 13h11l1-13M9 7V4h6v3"/></svg>',
+  down: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>',
+  swap: '<svg class="ic" viewBox="0 0 24 24"><path d="M4 8h13l-3-3M20 16H7l3 3"/></svg>',
+  wait: '<svg class="ic" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M7 3h10M7 21h10M8 3v3.5L12 12l4-5.5V3M8 21v-3.5L12 12l4 5.5V21"/></svg>',
+};
+
+/* ---------- drawing ---------- */
+function imgRect(sl) {
+  const iw = iW(sl.img), ih = iH(sl.img);
+  const sc = Math.max(W / iw, H / ih) * sl.zoom;
+  const dw = iw * sc, dh = ih * sc;
+  const maxX = (dw - W) / 2, maxY = (dh - H) / 2;
+  return { dw, dh, maxX, maxY, x: (W - dw) / 2 - sl.panX * maxX, y: (H - dh) / 2 - sl.panY * maxY };
+}
+function parseText(text) {
+  const paras = [[]]; let em = false;
+  for (const c of text) {
+    if (c === '*') { em = !em; continue; }
+    if (c === '\n') { paras.push([]); continue; }
+    paras[paras.length - 1].push({ c, e: em });
+  }
+  return paras;
+}
+function wrapLines(ctx, paras, maxW) {
+  const width = arr => ctx.measureText(arr.map(x => x.c).join('')).width;
+  const isSp = tok => tok.length && /\s/.test(tok[0].c);
+  const trimEnd = arr => { const a = arr.slice(); while (a.length && /\s/.test(a[a.length - 1].c)) a.pop(); return a; };
+  const lines = [];
+  for (const p of paras) {
+    const toks = []; let cur = [];
+    for (const ch of p) {
+      const sp = /\s/.test(ch.c);
+      if (cur.length && /\s/.test(cur[0].c) !== sp) { toks.push(cur); cur = []; }
+      cur.push(ch);
+    }
+    if (cur.length) toks.push(cur);
+    let line = [];
+    for (const tok of toks) {
+      if (isSp(tok) && !line.length) continue;
+      const cand = line.concat(tok);
+      if (width(cand) <= maxW) { line = cand; continue; }
+      if (isSp(tok)) { lines.push(trimEnd(line)); line = []; continue; }
+      if (line.length) { lines.push(trimEnd(line)); line = []; }
+      for (const ch of tok) {
+        const c2 = line.concat([ch]);
+        if (width(c2) > maxW && line.length) { lines.push(line); line = [ch]; } else line = c2;
+      }
+    }
+    lines.push(trimEnd(line));
+  }
+  return lines;
+}
+function drawCoverText(ctx, post) {
+  const st = post.st, text = post.coverText, f = fontOf(st.font), size = st.fontSize, PAD = 90;
+  ctx.font = `${f.w} ${size}px "${f.id}"`;
+  if ('letterSpacing' in ctx) ctx.letterSpacing = (st.tracking * size / 100) + 'px';
+  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  const lines = wrapLines(ctx, parseText(text), W - PAD * 2);
+  const lh = size * 1.28, blockH = lines.length * lh;
+  const y0 = st.textPos === 'top' ? 190 : st.textPos === 'center' ? (H - blockH) / 2 : H - 170 - blockH;
+  if (st.shadow) { ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = size * 0.25; ctx.shadowOffsetY = size * 0.04; }
+  lines.forEach((line, i) => {
+    const runs = [];
+    for (const ch of line) {
+      const last = runs[runs.length - 1];
+      if (last && last.e === ch.e) last.t += ch.c; else runs.push({ t: ch.c, e: ch.e });
+    }
+    const widths = runs.map(r => ctx.measureText(r.t).width);
+    const total = widths.reduce((a, b) => a + b, 0);
+    let x = st.align === 'left' ? PAD : st.align === 'right' ? W - PAD - total : (W - total) / 2;
+    const y = y0 + i * lh + size * 0.92;
+    runs.forEach((r, k) => { ctx.fillStyle = r.e ? st.accent : st.textColor; ctx.fillText(r.t, x, y); x += widths[k]; });
+  });
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+}
+function drawOverlay(ctx, st) {
+  const a = st.overlay; if (a <= 0) return;
+  if (st.textPos === 'center') { ctx.fillStyle = `rgba(0,0,0,${a * 0.55})`; ctx.fillRect(0, 0, W, H); return; }
+  const top = st.textPos === 'top';
+  const g = top ? ctx.createLinearGradient(0, H * 0.6, 0, 0) : ctx.createLinearGradient(0, H * 0.4, 0, H);
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${a})`);
+  ctx.fillStyle = g;
+  top ? ctx.fillRect(0, 0, W, H * 0.6) : ctx.fillRect(0, H * 0.4, W, H * 0.6);
+}
+function drawLogo(ctx) {
+  const lw = W * S.logoSize / 100, lh = lw * iH(logo) / iW(logo), m = 56;
+  const col = S.logoPos[1], row = S.logoPos[0];
+  const x = col === 'l' ? m : col === 'r' ? W - m - lw : (W - lw) / 2;
+  const y = row === 't' ? m : H - m - lh;
+  ctx.drawImage(logo, x, y, lw, lh);
+}
+function drawSlide(ctx, sl, post, isCover) {
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#111'; ctx.fillRect(0, 0, W, H);
+  const r = imgRect(sl);
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(sl.img, r.x, r.y, r.dw, r.dh);
+  if (isCover && post.coverText.trim()) { drawOverlay(ctx, post.st); drawCoverText(ctx, post); }
+  if (logo && (S.logoAll || isCover)) drawLogo(ctx);
+}
+
+let raf = 0;
+function render() { cancelAnimationFrame(raf); raf = requestAnimationFrame(renderNow); }
+async function renderNow() {
+  await Promise.all(posts.filter(p => p.coverText.trim()).map(p => {
+    const f = fontOf(p.st.font);
+    return document.fonts.load(`${f.w} 80px "${f.id}"`, p.coverText.replace(/\s/g, '')).catch(() => {});
+  }));
+  const name = S.account.trim() || 'your.account';
+  posts.forEach(p => {
+    p.slides.forEach((sl, i) => {
+      drawSlide(sl.ctx, sl, p, i === 0);
+      const tc = sl.thumb.getContext('2d');
+      tc.clearRect(0, 0, 128, 160); tc.drawImage(sl.canvas, 0, 0, 128, 160);
+    });
+    if (p.el) {
+      p.el.name.textContent = name;
+      if (p.caption.trim()) { p.el.txt.textContent = p.caption; p.el.txt.className = 'txt'; }
+      else { p.el.txt.textContent = '왼쪽 "캡션 내용"에 입력하면 여기에 표시됩니다.'; p.el.txt.className = 'txt ph'; }
+    }
+  });
+  if (modal.p >= 0) {
+    const p = posts[modal.p], sl = p && p.slides[modal.s];
+    if (sl) drawSlide($('mCanvas').getContext('2d'), sl, p, modal.s === 0);
+  }
+}
+
+/* ---------- posts / cards ---------- */
+function setVersion(sl, v) {
+  sl.use = sl[v] ? v : 'orig'; sl.img = sl[sl.use];
+  sl.panX = sl.panY = 0; sl.zoom = 1;
+}
+const isCapIdx = i => S.capSlide && i === 1;
+function makeSlide(img) {
+  const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
+  const thumb = document.createElement('canvas'); thumb.width = 128; thumb.height = 160;
+  return { id: uid(), img, orig: img, clean: null, regen: null, use: 'orig', panX: 0, panY: 0, zoom: 1, canvas, ctx: canvas.getContext('2d'), thumb };
+}
+async function decodeFiles(files) {
+  const imgs = [...files].filter(isImageFile)
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  const ok = [], failed = [];
+  for (const f of imgs) {
+    try { ok.push(await decodeImage(f)); }
+    catch (e) { console.error('decode fail', f.name, f.type, e); failed.push(f.name); }
+  }
+  if (!imgs.length && files.length) toast('이미지 파일이 아니에요');
+  else if (failed.length) toast(`열 수 없는 파일: ${failed.join(', ')}`);
+  return ok;
+}
+// 사진 1장 = 게시물 1개
+async function addPosts(files) {
+  const imgs = await decodeFiles(files);
+  if (!imgs.length) return;
+  imgs.forEach(img => posts.push({ id: uid(), coverText: '', caption: '', capImgs: [], st: { ...lastStyle }, open: false, slides: [makeSlide(img)], active: 0 }));
+  if (selIdx < 0) selIdx = posts.length - imgs.length;
+  rebuild();
+  toast(`게시물 ${imgs.length}개 추가됨`);
+}
+// 특정 게시물에 장 추가 (ADD)
+async function addSlides(pi, files) {
+  const imgs = await decodeFiles(files);
+  if (!imgs.length || !posts[pi]) return;
+  imgs.forEach(img => posts[pi].slides.push(makeSlide(img)));
+  posts[pi].active = posts[pi].slides.length - 1;
+  rebuild();
+  toast(`${pi + 1}번 게시물에 ${imgs.length}장 추가됨`);
+}
+let swapTarget = null;
+// 원본은 남겨두고(제목 번역용) 화면에 쓸 이미지만 교체
+async function swapImage(pi, si, files) {
+  const p = posts[pi]; if (!p) return;
+  if (isCapIdx(si)) { toast('캡션 캡처 장은 교체할 수 없어요'); return; }
+  const imgs = await decodeFiles(files); if (!imgs.length) return;
+  const sl = p.slides[si];
+  sl.clean = imgs[0]; sl.cleanManual = true; sl.regen = null;
+  setVersion(sl, 'clean'); rebuild();
+  toast(`${pi + 1}번 게시물 ${si + 1}장을 교체했어요 (원본으로 되돌리기 가능)`);
+}
+function removePost(pi) {
+  posts.splice(pi, 1);
+  if (selIdx >= posts.length) selIdx = posts.length - 1;
+  rebuild();
+}
+function removeSlide(pi, si) {
+  const p = posts[pi];
+  if (p.slides.length === 1) return removePost(pi);
+  p.slides.splice(si, 1);
+  p.active = Math.min(p.active, p.slides.length - 1);
+  rebuild();
+}
+function select(pi) {
+  selIdx = pi;
+  document.querySelectorAll('.post').forEach((el, i) => el.classList.toggle('sel', i === pi));
+  syncSidebar();
+}
+function syncSidebar() {
+  const p = posts[selIdx];
+  $('caption').disabled = !p; $('caption').value = p ? p.caption : '';
+  paintCapSrc();
+  const b = $('selBadge'); b.textContent = p ? `${selIdx + 1}번 게시물` : '게시물 없음'; b.classList.toggle('sel', !!p);
+}
+
+let addTarget = -1;
+function rebuild() {
+  const wrap = $('posts'); wrap.innerHTML = '';
+  $('empty').hidden = posts.length > 0;
+  const nSlides = posts.reduce((a, p) => a + p.slides.length, 0);
+  $('count').textContent = `게시물 ${posts.length}개 · ${nSlides}장`;
+  $('btnZip').disabled = !posts.length;
+  $('btnAI').disabled = !posts.length || aiRunning;
+  posts.forEach((p, pi) => {
+    const el = document.createElement('div'); el.className = 'post' + (pi === selIdx ? ' sel' : '');
+    el.innerHTML = `
+      <div class="pimg"><div class="ptools"><button class="aa${p.open ? ' on' : ''}" title="텍스트 편집">Aa</button><button title="이미지 교체 (Gemini 편집본)">${IC.swap}</button><button title="이 게시물 다운로드">${IC.down}</button><button title="게시물 삭제">${IC.trash}</button></div>
+        <div class="pnum">${p.active + 1} / ${p.slides.length}</div></div>
+      <div class="pbar">${IC.heart}${IC.comment}${IC.repost}${IC.send}<span class="sp"></span>${IC.save}</div>
+      <div class="pcap"><b></b><span class="txt"></span><div class="more">더 보기</div></div>
+      <div class="pthumbs"></div>
+      <div class="pstatus"></div>`;
+    const pimg = el.querySelector('.pimg');
+    pimg.prepend(p.slides[p.active].canvas);
+    const [bText, bSwap, bDown, bDel] = el.querySelectorAll('.ptools button');
+    bSwap.onclick = e => { e.stopPropagation(); swapTarget = { pi, si: p.active }; $('fileSwap').click(); };
+    // 큰 이미지 위에 놓으면 = 교체, 카드의 다른 곳에 놓으면 = 장 추가
+    pimg.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); el.classList.add('drop'); pimg.style.outline = '3px solid #4a9eff'; pimg.style.outlineOffset = '-3px'; });
+    pimg.addEventListener('dragleave', () => { pimg.style.outline = ''; });
+    pimg.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); pimg.style.outline = ''; el.classList.remove('drop'); $('main').classList.remove('dropping'); swapImage(pi, p.active, e.dataTransfer.files); });
+    bText.onclick = e => { e.stopPropagation(); p.open = !p.open; selIdx = pi; rebuild(); };
+    if (p.open) pimg.after(buildTextPanel(p, pi));
+    const cur = p.slides[p.active];
+    if (isCapIdx(p.active)) {
+      const n = document.createElement('div'); n.className = 'capnote';
+      n.textContent = '캡션 캡처 · 캡션 생성에만 쓰이고 다운로드에서는 빠져요';
+      pimg.after(n);
+    } else if (cur.clean || cur.regen) {
+      const v = document.createElement('div'); v.className = 'vsel';
+      const opts = [['orig', '원본'], ['clean', cur.cleanManual ? '교체본' : '텍스트 제거'], ['regen', '재생성']].filter(([k]) => cur[k]);
+      v.innerHTML = `<div class="seg" style="grid-template-columns:repeat(${opts.length},1fr)">` +
+        opts.map(([k, l]) => `<button data-v="${k}" class="${cur.use === k ? 'on' : ''}">${l}</button>`).join('') + '</div>';
+      v.onclick = e => { e.stopPropagation(); const b = e.target.closest('button'); if (!b) return; setVersion(cur, b.dataset.v); rebuild(); };
+      pimg.after(v);
+    }
+    bDown.onclick = e => { e.stopPropagation(); exportZip([pi], `post_${pad(pi + 1)}.zip`); };
+    bDel.onclick = e => { e.stopPropagation(); removePost(pi); };
+    pimg.onclick = () => { select(pi); openEditor(pi, p.active); };
+    const cap = el.querySelector('.pcap');
+    cap.onclick = () => { cap.classList.toggle('open'); cap.querySelector('.more').textContent = cap.classList.contains('open') ? '접기' : '더 보기'; };
+    const strip = el.querySelector('.pthumbs');
+    p.slides.forEach((sl, si) => {
+      const t = document.createElement('div'); t.className = 'thumb' + (si === p.active ? ' on' : '');
+      t.appendChild(sl.thumb);
+      const x = document.createElement('button'); x.className = 'x'; x.textContent = '✕';
+      x.onclick = e => { e.stopPropagation(); removeSlide(pi, si); };
+      t.appendChild(x);
+      if (isCapIdx(si)) t.insertAdjacentHTML('beforeend', '<span class="tag">캡션</span>');
+      else if (sl.use !== 'orig') t.insertAdjacentHTML('beforeend', '<span class="tag ai">AI</span>');
+      t.onclick = e => { e.stopPropagation(); p.active = si; selIdx = pi; rebuild(); };
+      strip.appendChild(t);
+    });
+    const add = document.createElement('div'); add.className = 'padd'; add.innerHTML = '<b>+</b>ADD';
+    add.onclick = e => { e.stopPropagation(); addTarget = pi; $('fileAdd').click(); };
+    strip.appendChild(add);
+    el.addEventListener('click', () => select(pi));
+    el.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); el.classList.add('drop'); });
+    el.addEventListener('dragleave', e => { if (!el.contains(e.relatedTarget)) el.classList.remove('drop'); });
+    el.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); el.classList.remove('drop'); $('main').classList.remove('dropping'); addSlides(pi, e.dataTransfer.files); });
+    p.el = { name: cap.querySelector('b'), txt: cap.querySelector('.txt'), status: el.querySelector('.pstatus') };
+    p.el.status.onclick = e => { e.stopPropagation(); if (!p.busy) processPost(p); };
+    paintStatus(p);
+    wrap.appendChild(el);
+  });
+  syncSidebar();
+  render();
+}
+
+/* ---------- editor modal ---------- */
+const modal = { p: -1, s: -1 };
+let drag = null;
+function curSlide() { return posts[modal.p]?.slides[modal.s]; }
+function openEditor(pi, si) {
+  modal.p = pi; modal.s = si; const sl = curSlide(); if (!sl) return;
+  $('mTitle').textContent = `${pi + 1}번 게시물 · ${si + 1}장${si === 0 ? ' (표지)' : ''}`;
+  $('mZoom').value = sl.zoom; $('mZoomOut').textContent = Math.round(sl.zoom * 100) + '%';
+  $('mCoverWrap').hidden = si !== 0; $('mCover').value = posts[pi].coverText;
+  $('modal').classList.add('open'); render();
+}
+function closeEditor() { modal.p = modal.s = -1; $('modal').classList.remove('open'); rebuild(); }
+const mc = $('mCanvas');
+mc.addEventListener('pointerdown', e => { if (!curSlide()) return; drag = { x: e.clientX, y: e.clientY }; mc.setPointerCapture(e.pointerId); });
+mc.addEventListener('pointermove', e => {
+  const sl = curSlide(); if (!drag || !sl) return;
+  const r = imgRect(sl), k = W / mc.clientWidth;
+  const dx = (e.clientX - drag.x) * k, dy = (e.clientY - drag.y) * k; drag = { x: e.clientX, y: e.clientY };
+  if (r.maxX > 0) sl.panX = Math.max(-1, Math.min(1, sl.panX - dx / r.maxX));
+  if (r.maxY > 0) sl.panY = Math.max(-1, Math.min(1, sl.panY - dy / r.maxY));
+  render();
+});
+mc.addEventListener('pointerup', () => drag = null);
+mc.addEventListener('wheel', e => { e.preventDefault(); const sl = curSlide(); if (sl) setZoom(sl.zoom - e.deltaY * 0.001); }, { passive: false });
+function setZoom(z) { const sl = curSlide(); sl.zoom = Math.max(1, Math.min(2.5, z)); $('mZoom').value = sl.zoom; $('mZoomOut').textContent = Math.round(sl.zoom * 100) + '%'; render(); }
+$('mZoom').oninput = e => setZoom(+e.target.value);
+$('mCover').oninput = e => { posts[modal.p].coverText = e.target.value; syncSidebar(); render(); };
+$('mReset').onclick = () => { const sl = curSlide(); sl.panX = sl.panY = 0; setZoom(1); };
+function moveSlide(d) {
+  const p = posts[modal.p], i = modal.s, j = i + d;
+  if (j < 0 || j >= p.slides.length) return;
+  [p.slides[i], p.slides[j]] = [p.slides[j], p.slides[i]]; p.active = j;
+  openEditor(modal.p, j);
+}
+$('mPrev').onclick = () => moveSlide(-1);
+$('mNext').onclick = () => moveSlide(1);
+$('mDel').onclick = () => { const { p, s } = modal; $('modal').classList.remove('open'); modal.p = modal.s = -1; removeSlide(p, s); };
+$('mDown').onclick = () => { const sl = curSlide(); const n = `post${pad(modal.p + 1)}_${pad(modal.s + 1)}.jpg`; sl.canvas.toBlob(b => saveBlob(b, n), 'image/jpeg', 0.95); };
+$('mClose').onclick = closeEditor;
+$('modal').onclick = e => { if (e.target === $('modal')) closeEditor(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && modal.p >= 0) closeEditor(); });
+
+/* ---------- export ---------- */
+function saveBlob(blob, name) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+}
+async function exportZip(indexes, filename) {
+  await renderNow();
+  const zip = new JSZip();
+  for (const pi of indexes) {
+    const p = posts[pi], dir = indexes.length > 1 ? zip.folder(`post_${pad(pi + 1)}`) : zip;
+    let n = 0;
+    for (let i = 0; i < p.slides.length; i++) {
+      if (isCapIdx(i)) continue;
+      const blob = await new Promise(r => p.slides[i].canvas.toBlob(r, 'image/jpeg', 0.95));
+      dir.file(`${pad(++n)}.jpg`, blob);
+    }
+    if (p.caption.trim()) dir.file('caption.txt', p.caption);
+  }
+  saveBlob(await zip.generateAsync({ type: 'blob' }), filename);
+  toast('다운로드 완료');
+}
+$('btnZip').onclick = () => {
+  const d = new Date();
+  exportZip(posts.map((_, i) => i), `cardnews_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.zip`);
+};
+
+/* ---------- AI ---------- */
+let aiRunning = false;
+const LANG_NAME = { ko: 'Korean', ja: 'Japanese', en: 'English' };
+const CREDIT_WORD = { ko: '출처', ja: '出典', en: 'Source' };
+const TITLE_SCHEMA = { type: 'OBJECT', properties: { original: { type: 'STRING' }, title: { type: 'STRING' }, source: { type: 'STRING' } }, required: ['title'] };
+const CAP_SCHEMA = { type: 'OBJECT', properties: { caption: { type: 'STRING' } }, required: ['caption'] };
+
+const titlePrompt = L => `This image is a social media card-news post. Find the main headline/title text overlaid on the image.
+Ignore watermarks, account names, logos and UI labels such as "SWIPE", "NEWS", "TRENDING".
+Translate the headline into natural, fluent ${L} that works as a punchy card-news cover title. Keep the meaning accurate.
+Keep it short (Korean/Japanese: about 40 characters max; English: about 12 words max).
+Insert line breaks (\\n) where a designer would break the lines, 2 to 4 lines.
+Wrap the single most important phrase in *asterisks* for emphasis (exactly one pair).
+Also report the publisher's brand/account name if it is visible (watermark or logo text), otherwise an empty string.
+Respond with JSON only, no other text: {"original": the headline as written, "title": the translated title, "source": publisher name}.`;
+
+function captionPrompt(L, lang, p, nImages) {
+  let t = `You are writing an Instagram caption in ${L} for a card-news account.\n\nSOURCE MATERIAL\n`;
+  if (nImages) t += `- ${nImages} attached screenshot(s) containing the text to use. Read all the text in them, in order (ignore app UI such as usernames, like counts, buttons, timestamps).\n`;
+  if (p.caption.trim()) t += `- Text provided by the user:\n---\n${p.caption}\n---\n`;
+  if (p.coverText.trim()) t += `- For context, the post's cover title is: "${p.coverText.replace(/\*/g, '')}"\n`;
+  t += `\nHOW TO HANDLE THE LANGUAGE
+- If the source is NOT in ${L} (e.g. English), translate it into natural, fluent ${L} — not word-for-word, the way a native writer would say it.
+- If the source is already in ${L}, do not translate; tidy it up and rewrite it so it reads better, keeping the meaning.
+
+Write it as a natural, engaging Instagram caption in ${L}:
+- first line is a hook
+- 2 to 5 short paragraphs, light emoji use
+- keep facts accurate, never invent facts, numbers or quotes
+- end with 5 to 10 relevant hashtags`;
+  if (S.credit && p.source) t += `\n- before the hashtags, add a credit line exactly like: "${CREDIT_WORD[lang]}: ${p.source}"`;
+  return t + `\nRespond with JSON only, no other text: {"caption": "..."}`;
+}
+const CLEAN_PROMPT = `Edit this image: remove ALL overlaid text and graphic text elements — headlines, captions, labels, badges and stickers (e.g. "SWIPE", "NEWS", "TRENDING"), and any social-media interface elements (icons, like counts, usernames).
+Also remove solid or gradient boxes that only existed to hold text.
+Fill the removed areas so they look like the natural continuation of the photo.
+Keep every person, animal, object, color, lighting and the composition exactly the same. Do not add anything new.
+Output a 4:5 portrait image. If more space is needed, extend the background naturally instead of stretching or cropping the main subjects.`;
+const REGEN_PROMPT = `Recreate this photo as a fresh, high-quality rendering that is almost identical to it:
+same subjects, poses, expressions, composition, framing, colors and lighting.
+Only introduce very subtle, natural variations in fine texture, small background details and grain.
+Do not add any text, letters, logos or watermarks. Keep the 4:5 portrait format.`;
+
+function imgToB64(img, max = 1536) {
+  const iw = iW(img), ih = iH(img), k = Math.min(1, max / Math.max(iw, ih));
+  const c = document.createElement('canvas'); c.width = Math.round(iw * k); c.height = Math.round(ih * k);
+  const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.9).split(',')[1];
+}
+async function b64ToImg(b64, mime = 'image/png') {
+  const bin = atob(b64), u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return decodeImage(new Blob([u], { type: mime }));
+}
+async function api(path, body) {
+  if (!S.aiUrl.trim()) throw new Error('"AI 연결"에 Worker 주소를 넣어주세요');
+  let r;
+  try {
+    r = await fetch(S.aiUrl.trim().replace(/\/+$/, '') + path, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-App-Token': S.aiToken }, body: JSON.stringify(body)
+    });
+  } catch (e) { throw new Error('서버에 연결할 수 없어요 (주소·허용 사이트 확인)'); }
+  const d = await r.json().catch(() => ({ error: `응답을 읽을 수 없어요 (${r.status})` }));
+  if (!r.ok || d.error) throw new Error(d.error || `오류 ${r.status}`);
+  return d;
+}
+const parseJSON = t => { t = t.replace(/^```(?:json)?\s*|\s*```$/g, ''); try { return JSON.parse(t); } catch (e) { const m = t.match(/\{[\s\S]*\}/); if (m) return JSON.parse(m[0]); throw new Error('AI 응답 형식 오류'); } };
+
+function paintStatus(p) {
+  const el = p.el && p.el.status; if (!el) return;
+  const st = p.status || { state: 'idle' };
+  el.className = 'pstatus ' + st.state;
+  el.title = st.errs ? st.errs.join('\n') : '';
+  if (st.state === 'run') el.innerHTML = `<span class="spin"></span>${st.msg}`;
+  else if (st.state === 'done') el.textContent = '✓ AI 변환 완료 · 다시 변환';
+  else if (st.state === 'err') el.textContent = `⚠ 일부 실패 (${st.errs.length}) · 다시 시도`;
+  else el.textContent = '⚡ 이 게시물 AI 변환';
+}
+
+async function processPost(p) {
+  if (p.busy) return;
+  if (!S.aiUrl.trim()) { toast('왼쪽 "AI 연결"을 먼저 설정해주세요'); $('aiSec').scrollIntoView({ behavior: 'smooth' }); return; }
+  p.busy = true;
+  const L = LANG_NAME[S.lang], lang = S.lang;
+  const capSources = captionSources(p);
+  const imgSlides = p.slides.filter((_, i) => !isCapIdx(i));
+  const perImg = (S.aiClean ? 1 : 0) + (S.aiRegen ? 1 : 0);
+  const total = 1 + ((capSources.length || p.caption.trim()) ? 1 : 0) + imgSlides.length * perImg;
+  let done = 0; const errs = [], doing = new Set();
+  const paint = () => { p.status = { state: 'run', msg: `${[...doing].join(' · ') || '처리 중'} (${done}/${total})` }; paintStatus(p); };
+  const step = async (label, fn) => {
+    doing.add(label); paint();
+    try { await fn(); } catch (e) { errs.push(`${label}: ${e.message}`); }
+    finally { doing.delete(label); done++; paint(); }
+  };
+
+  const textChain = (async () => {
+    await step('제목 번역', async () => {
+      const d = await api('/claude', { prompt: titlePrompt(L), images: [imgToB64(p.slides[0].orig)] });
+      const j = parseJSON(d.text);
+      if (j.title) p.coverText = j.title.trim();
+      p.source = (j.source || '').trim();
+      render();
+    });
+    if (capSources.length || p.caption.trim()) await step('캡션 작성', () => writeCaption(p));
+  })();
+  const imgChains = imgSlides.map(async (sl, k) => {
+    const n = imgSlides.length > 1 ? ` ${k + 1}` : '';
+    let base = sl.orig;
+    if (S.aiClean) await step('텍스트 제거' + n, async () => {
+      const d = await api('/image', { prompt: CLEAN_PROMPT, images: [imgToB64(sl.orig)], aspectRatio: '4:5', imageSize: S.aiSize });
+      sl.clean = await b64ToImg(d.image, d.mimeType); sl.cleanManual = false; base = sl.clean; setVersion(sl, 'clean'); render();
+    });
+    if (S.aiRegen) await step('재생성' + n, async () => {
+      const d = await api('/image', { prompt: REGEN_PROMPT, images: [imgToB64(base)], aspectRatio: '4:5', imageSize: S.aiSize });
+      sl.regen = await b64ToImg(d.image, d.mimeType); setVersion(sl, 'regen'); render();
+    });
+  });
+  await Promise.all([textChain, ...imgChains]);
+  p.busy = false;
+  p.status = errs.length ? { state: 'err', errs } : { state: 'done' };
+  if (errs.length) toast(errs[0]);
+  rebuild();
+}
+
+// 캡션 재료: 사이드바에 첨부한 캡처 + (설정 시) 2번째 장
+function captionSources(p) {
+  const list = [...(p.capImgs || [])];
+  if (S.capSlide && p.slides[1]) list.push(p.slides[1].orig);
+  return list;
+}
+async function writeCaption(p) {
+  const imgs = captionSources(p);
+  if (!imgs.length && !p.caption.trim()) throw new Error('문구를 입력하거나 캡처를 첨부해주세요');
+  const d = await api('/claude', { prompt: captionPrompt(LANG_NAME[S.lang], S.lang, p, imgs.length), images: imgs.map(i => imgToB64(i, 1800)) });
+  const j = parseJSON(d.text);
+  if (!j.caption) throw new Error('캡션이 비어 있어요');
+  p.capPrev = p.caption;
+  p.caption = j.caption.trim();
+  if (posts[selIdx] === p) { $('caption').value = p.caption; $('btnCapUndo').hidden = false; }
+  render();
+}
+function paintCapSrc() {
+  const p = posts[selIdx], box = $('capSrc'); box.innerHTML = '';
+  $('btnCap').disabled = !p || !!(p && p.capBusy);
+  $('btnCap').textContent = p && p.capBusy ? '작성 중…' : '✨ Claude로 캡션 만들기';
+  $('btnCapUndo').hidden = !p || p.capPrev === undefined;
+  if (!p) return;
+  p.capImgs.forEach((img, i) => {
+    const t = document.createElement('div'); t.className = 'capthumb';
+    const c = document.createElement('canvas'); c.width = 112; c.height = 112;
+    const x = c.getContext('2d'), k = Math.max(112 / iW(img), 112 / iH(img));
+    x.drawImage(img, (112 - iW(img) * k) / 2, (112 - iH(img) * k) / 2, iW(img) * k, iH(img) * k);
+    const b = document.createElement('button'); b.textContent = '✕';
+    b.onclick = () => { p.capImgs.splice(i, 1); paintCapSrc(); };
+    t.append(c, b); box.appendChild(t);
+  });
+  const add = document.createElement('button'); add.className = 'capadd';
+  add.textContent = p.capImgs.length ? '+ 추가' : '📎 캡처 이미지 첨부';
+  add.onclick = () => $('fileCap').click();
+  box.appendChild(add);
+}
+async function addCapImgs(files) {
+  const p = posts[selIdx]; if (!p) { toast('게시물을 먼저 선택해주세요'); return; }
+  const imgs = await decodeFiles(files); if (!imgs.length) return;
+  p.capImgs.push(...imgs); paintCapSrc();
+}
+$('fileCap').onchange = e => { addCapImgs(e.target.files); e.target.value = ''; };
+$('btnCap').onclick = async () => {
+  const p = posts[selIdx]; if (!p || p.capBusy) return;
+  if (!S.aiUrl.trim()) { toast('왼쪽 "AI 연결"을 먼저 설정해주세요'); $('aiSec').scrollIntoView({ behavior: 'smooth' }); return; }
+  p.capBusy = true; paintCapSrc();
+  try { await writeCaption(p); toast('캡션을 만들었어요'); }
+  catch (e) { toast(e.message); }
+  finally { p.capBusy = false; paintCapSrc(); }
+};
+$('btnCapUndo').onclick = () => {
+  const p = posts[selIdx]; if (!p || p.capPrev === undefined) return;
+  [p.caption, p.capPrev] = [p.capPrev, p.caption];
+  $('caption').value = p.caption; render();
+};
+// 캡션 영역에 끌어다 놓기 / 캡션 칸에 이미지 붙여넣기 → 캡처 첨부
+const capSec = $('capSec');
+capSec.addEventListener('dragover', e => { e.preventDefault(); capSec.classList.add('dropping'); });
+capSec.addEventListener('dragleave', e => { if (!capSec.contains(e.relatedTarget)) capSec.classList.remove('dropping'); });
+capSec.addEventListener('drop', e => { e.preventDefault(); capSec.classList.remove('dropping'); addCapImgs(e.dataTransfer.files); });
+$('caption').addEventListener('paste', e => {
+  const files = [...(e.clipboardData?.items || [])].filter(it => it.kind === 'file').map(it => it.getAsFile()).filter(Boolean);
+  if (files.length) { e.preventDefault(); addCapImgs(files); }
+});
+
+$('btnAI').onclick = async () => {
+  if (!S.aiUrl.trim()) { toast('왼쪽 "AI 연결"을 먼저 설정해주세요'); $('aiSec').scrollIntoView({ behavior: 'smooth' }); return; }
+  const list = posts.filter(p => !p.busy && (!p.status || p.status.state !== 'done'));
+  if (!list.length) { toast('모두 변환됐어요 (카드 아래에서 다시 변환 가능)'); return; }
+  aiRunning = true; $('btnAI').disabled = true; $('btnAI').textContent = `⚡ 변환 중… (0/${list.length})`;
+  for (let i = 0; i < list.length; i++) {
+    await processPost(list[i]);
+    $('btnAI').textContent = `⚡ 변환 중… (${i + 1}/${list.length})`;
+  }
+  aiRunning = false; $('btnAI').textContent = '⚡ AI 변환 (전체)'; $('btnAI').disabled = !posts.length;
+  toast('AI 변환이 끝났어요');
+};
+function setAiBadge(ok) {
+  const b = $('aiBadge');
+  b.textContent = ok === null ? '미확인' : ok ? '연결됨' : '실패';
+  b.classList.toggle('sel', !!ok);
+}
+$('btnPing').onclick = async () => {
+  try { const d = await api('/ping', {}); setAiBadge(true); toast(d.claude ? `연결 성공 · ${d.claudeModel}` : '연결은 됐지만 ANTHROPIC_API_KEY가 없어요'); }
+  catch (e) { setAiBadge(false); toast(e.message); }
+};
+
+/* ---------- controls ---------- */
+function fmt(key, v) {
+  if (key === 'overlay') return Math.round(v * 100) + '%';
+  if (key === 'logoSize') return v + '%';
+  if (key === 'fontSize') return v + 'px';
+  return String(v);
+}
+const FONT_OPTIONS = ['한국어', '日本語', 'English'].map(g =>
+  `<optgroup label="${g}">` + FONTS.filter(f => f.g === g).map(f => `<option value="${f.id}">${f.label}</option>`).join('') + '</optgroup>').join('');
+// 게시물 카드 안의 텍스트 편집 패널
+function buildTextPanel(p, pi) {
+  const el = document.createElement('div'); el.className = 'tpanel';
+  el.innerHTML = `
+    <div class="lbl">표지 문구 <span>*별표* = 강조색</span></div>
+    <textarea data-k="coverText" placeholder="결혼 전에 꼭&#10;*이것*만은 확인하세요"></textarea>
+    <div class="lbl">폰트</div>
+    <select data-st="font">${FONT_OPTIONS}</select>
+    <div class="two">
+      <div><div class="lbl">크기 <span data-o="fontSize"></span></div><input type="range" min="48" max="180" step="2" data-st="fontSize"></div>
+      <div><div class="lbl">자간 <span data-o="tracking"></span></div><input type="range" min="-10" max="10" step="1" data-st="tracking"></div>
+    </div>
+    <div class="lbl">위치</div>
+    <div class="seg" data-sk="textPos"><button data-val="top">위</button><button data-val="center">가운데</button><button data-val="bottom">아래</button></div>
+    <div class="lbl">정렬</div>
+    <div class="seg" data-sk="align"><button data-val="left">왼쪽</button><button data-val="center">가운데</button><button data-val="right">오른쪽</button></div>
+    <div class="two">
+      <div><div class="lbl">글자색</div><input type="color" data-st="textColor"></div>
+      <div><div class="lbl">강조색</div><input type="color" data-st="accent"></div>
+    </div>
+    <div class="lbl">배경 어둡게 <span data-o="overlay"></span></div>
+    <input type="range" min="0" max="0.95" step="0.05" data-st="overlay">
+    <label class="check"><input type="checkbox" data-st="shadow"> 글자 그림자</label>
+    <button class="btn applyall">이 스타일을 모든 게시물에 적용</button>`;
+  const ta = el.querySelector('textarea');
+  ta.value = p.coverText;
+  ta.addEventListener('input', () => { p.coverText = ta.value; render(); });
+  el.querySelectorAll('[data-st]').forEach(inp => {
+    const k = inp.dataset.st, out = el.querySelector(`[data-o="${k}"]`);
+    if (inp.type === 'checkbox') inp.checked = !!p.st[k]; else inp.value = p.st[k];
+    if (out) out.textContent = fmt(k, p.st[k]);
+    inp.addEventListener(inp.tagName === 'SELECT' ? 'change' : 'input', () => {
+      p.st[k] = inp.type === 'checkbox' ? inp.checked : inp.type === 'range' ? +inp.value : inp.value;
+      if (out) out.textContent = fmt(k, p.st[k]);
+      saveStyle(p.st); render();
+    });
+  });
+  const syncSeg = () => el.querySelectorAll('.seg[data-sk]').forEach(seg =>
+    [...seg.children].forEach(b => b.classList.toggle('on', p.st[seg.dataset.sk] === b.dataset.val)));
+  el.querySelectorAll('.seg[data-sk]').forEach(seg => seg.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    p.st[seg.dataset.sk] = b.dataset.val; syncSeg(); saveStyle(p.st); render();
+  }));
+  syncSeg();
+  el.querySelector('.applyall').onclick = () => {
+    posts.forEach(q => { if (q !== p) q.st = { ...p.st }; });
+    render(); toast('모든 게시물에 적용했어요');
+  };
+  el.addEventListener('click', e => e.stopPropagation());
+  return el;
+}
+document.querySelectorAll('[data-bind]').forEach(el => {
+  const k = el.dataset.bind;
+  if (el.type === 'checkbox') el.checked = !!S[k]; else el.value = S[k];
+  const out = document.querySelector(`[data-out="${k}"]`); if (out) out.textContent = fmt(k, S[k]);
+  el.addEventListener('input', () => {
+    S[k] = el.type === 'checkbox' ? el.checked : el.type === 'range' ? +el.value : el.value;
+    if (out) out.textContent = fmt(k, S[k]);
+    save();
+    if (k === 'capSlide') rebuild(); else render();
+    if (k === 'aiUrl' || k === 'aiToken') setAiBadge(null);
+  });
+});
+$('caption').addEventListener('input', () => { const p = posts[selIdx]; if (!p) return; p.caption = $('caption').value; render(); });
+function syncSegs() {
+  document.querySelectorAll('.seg[data-key]').forEach(seg => {
+    [...seg.children].forEach(b => b.classList.toggle('on', S[seg.dataset.key] === b.dataset.val));
+  });
+}
+document.querySelectorAll('.seg[data-key]').forEach(seg => {
+  seg.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    S[seg.dataset.key] = b.dataset.val; syncSegs(); save(); render();
+  });
+});
+syncSegs();
+
+$('lang').value = S.lang;
+$('lang').onchange = e => {
+  S.lang = e.target.value; save();
+  const font = DEFAULT_FONT[S.lang];
+  posts.forEach(p => p.st.font = font); saveStyle({ ...lastStyle, font });
+  rebuild();
+};
+
+$('btnUpload').onclick = () => $('fileImgs').click();
+$('fileImgs').onchange = e => { addPosts(e.target.files); e.target.value = ''; };
+$('fileSwap').onchange = e => { if (swapTarget) swapImage(swapTarget.pi, swapTarget.si, e.target.files); e.target.value = ''; };
+$('fileAdd').onchange = e => { if (addTarget >= 0) addSlides(addTarget, e.target.files); e.target.value = ''; };
+$('btnClear').onclick = () => { if (!posts.length) return; posts = []; selIdx = -1; rebuild(); toast('목록을 비웠어요'); };
+const main = $('main');
+main.addEventListener('dragover', e => { e.preventDefault(); main.classList.add('dropping'); });
+main.addEventListener('dragleave', e => { if (!main.contains(e.relatedTarget)) main.classList.remove('dropping'); });
+main.addEventListener('drop', e => { e.preventDefault(); main.classList.remove('dropping'); addPosts(e.dataTransfer.files); });
+document.addEventListener('paste', e => {
+  const t = e.target;
+  if (t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT')) return;
+  const files = [...(e.clipboardData?.items || [])].filter(it => it.kind === 'file').map(it => it.getAsFile()).filter(Boolean)
+    .map((f, i) => new File([f], `capture_${Date.now()}_${i}.png`, { type: f.type || 'image/png' }));
+  if (files.length) { e.preventDefault(); addPosts(files); }
+});
+
+async function setLogo(src) {
+  try { logo = src ? await loadImg(src) : null; } catch (e) { logo = null; src = null; toast('로고 파일을 열 수 없어요'); }
+  logoSrc = src;
+  $('logoPrev').hidden = !src; $('btnLogoDel').hidden = !src;
+  if (src) $('logoImgPrev').src = src;
+  $('btnLogo').textContent = src ? '로고 변경' : '로고 업로드';
+  render();
+}
+$('btnLogo').onclick = () => $('fileLogo').click();
+$('fileLogo').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  const src = await readAsDataURL(f);
+  await setLogo(src);
+  try { localStorage.setItem('cnm_logo', src); } catch (err) { toast('로고가 커서 다음 실행 때는 다시 올려야 해요'); }
+};
+$('btnLogoDel').onclick = () => { setLogo(null); try { localStorage.removeItem('cnm_logo'); } catch (e) {} };
+try { const saved = localStorage.getItem('cnm_logo'); if (saved) setLogo(saved); } catch (e) {}
+
+rebuild();
+</script>
+</body>
+</html>
