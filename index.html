@@ -190,6 +190,7 @@ input.daysel{color-scheme:dark}
 .rplay{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:60px;height:60px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:22px;cursor:pointer;backdrop-filter:blur(4px);z-index:2}
 .rplay.playing{opacity:0;transition:opacity .2s}
 .rview:hover .rplay.playing{opacity:1}
+.rsound{position:absolute;right:10px;bottom:10px;width:34px;height:34px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:15px;cursor:pointer;z-index:2}
 .rprog{position:absolute;left:10px;bottom:10px;background:rgba(0,0,0,.7);color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;z-index:2}
 .pactions.three{grid-template-columns:1fr 1fr 1fr}
 .pactions.three .btn{font-size:12px}
@@ -1631,7 +1632,7 @@ function buildReelCard(p, pi, ro) {
   el.className = 'post reel' + (!ro && pi === selIdx ? ' sel' : '') + (p.done ? ' isdone' : '') + (ro ? ' ro' : '');
   const tools = ro ? '' : `<button class="${p.done ? 'ok' : ''}" title="업로드 완료 표시">${IC.check}</button><button title="릴스 삭제">${IC.trash}</button>`;
   el.innerHTML = `
-    <div class="pimg rview"><div class="ptools">${tools}</div><button class="rplay" title="재생">▶</button><div class="rprog" hidden></div></div>
+    <div class="pimg rview"><div class="ptools">${tools}</div><button class="rplay" title="재생">▶</button><button class="rsound" title="소리 켜기/끄기">🔊</button><div class="rprog" hidden></div></div>
     <div class="pbar">${IC.heart}${IC.comment}${IC.repost}${IC.send}<span class="sp"></span>${IC.save}</div>
     <div class="pcap"><b></b><span class="txt"></span><div class="more">더 보기</div></div>
     <div class="pactions three"><button class="btn" data-a="vid">영상 다운로드</button><button class="btn" data-a="cover">커버 다운로드</button><button class="btn" data-a="cap">캡션 복사</button></div>`;
@@ -1641,11 +1642,20 @@ function buildReelCard(p, pi, ro) {
   view.prepend(p.ovl); view.prepend(p.vid);
   const play = el.querySelector('.rplay');
   const paintPlay = () => { play.textContent = p.vid.paused ? '▶' : '❚❚'; play.classList.toggle('playing', !p.vid.paused); };
+  const snd = el.querySelector('.rsound');
+  const paintSnd = () => { snd.textContent = p.vid.muted ? '🔇' : '🔊'; };
   play.onclick = async e => {
     e.stopPropagation(); await ensureVideo(p);
-    if (p.vid.paused) p.vid.play().catch(() => {}); else p.vid.pause();
+    if (p.vid.paused) {
+      [...posts, ...others].forEach(q => { if (q !== p && q.vid && !q.vid.paused) q.vid.pause(); });   // 한 번에 하나만 재생
+      p.vid.muted = false;   // 재생 버튼을 누르면 소리도 같이 켬
+      p.vid.play().catch(() => { p.vid.muted = true; p.vid.play().catch(() => {}); });
+    } else p.vid.pause();
+    paintSnd();
   };
-  p.vid.onplay = p.vid.onpause = paintPlay; paintPlay();
+  snd.onclick = e => { e.stopPropagation(); p.vid.muted = !p.vid.muted; paintSnd(); };
+  p.vid.onplay = p.vid.onpause = paintPlay; paintPlay(); paintSnd();
+  p.vid.onvolumechange = paintSnd;
   const cap = el.querySelector('.pcap');
   cap.onclick = e => { e.stopPropagation(); cap.classList.toggle('open'); cap.querySelector('.more').textContent = cap.classList.contains('open') ? '접기' : '더 보기'; };
   p.el = { name: cap.querySelector('b'), txt: cap.querySelector('.txt'), prog: el.querySelector('.rprog') };
