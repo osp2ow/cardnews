@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Do+Hyeon&family=Gothic+A1:wght@800&family=Noto+Sans+KR:wght@900&family=Noto+Serif+KR:wght@900&family=Nanum+Myeongjo:wght@800&family=Gowun+Batang:wght@700&family=Noto+Sans+JP:wght@900&family=Dela+Gothic+One&family=Zen+Maru+Gothic:wght@700&family=Zen+Old+Mincho:wght@900&family=Inter:wght@800&family=Playfair+Display:wght@800&family=Anton&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Do+Hyeon&family=Gothic+A1:wght@100;200;300;400;500;600;700;800;900&family=Noto+Sans+KR:wght@100..900&family=Noto+Serif+KR:wght@200..900&family=Nanum+Myeongjo:wght@400;700;800&family=Gowun+Batang:wght@400;700&family=Noto+Sans+JP:wght@100..900&family=Dela+Gothic+One&family=Zen+Maru+Gothic:wght@300;400;500;700;900&family=Zen+Old+Mincho:wght@400;500;600;700;900&family=Inter:wght@100..900&family=Playfair+Display:wght@400..900&family=Anton&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -330,7 +330,7 @@ textarea.inline{position:absolute;margin:0;padding:0;border:0;border-radius:0;mi
           <div><div class="lbl">크기 (px)</div><div class="sizectl stp" data-t="size" data-step="1" data-min="12" data-max="400"><button>−</button><input type="number"><button>+</button></div></div>
           <div><div class="lbl">자간</div><div class="sizectl stp" data-t="tracking" data-step="1" data-min="-20" data-max="40"><button>−</button><input type="number"><button>+</button></div></div>
           <div><div class="lbl">줄 간격</div><div class="sizectl stp" data-t="lineH" data-step="0.02" data-min="0.8" data-max="2.5" data-dec="2"><button>−</button><input type="number" step="0.01"><button>+</button></div></div>
-          <div></div>
+          <div><div class="lbl">굵기</div><div class="sizectl stp" data-t="weight" data-step="100" data-min="100" data-max="900"><button>−</button><input type="number"><button>+</button></div></div>
           <div><div class="lbl">글자색</div><input type="color" id="mColor"></div>
           <div><div class="lbl">강조색</div><input type="color" id="mAccent"></div>
         </div>
@@ -393,7 +393,8 @@ const STYLE_DEFAULT = {
   textColor: '#ffffff', accent: '#ffd84a', overlay: 0.7, shadow: true,
   offX: 0, offY: 0, lineH: 1.28, boxW: 84,
   subSize: 44, subColor: '#e6e6e6', subGap: 30, divider: false,
-  subFont: null, subTracking: null, subLineH: 1.25, subAccent: null
+  subFont: null, subTracking: null, subLineH: 1.25, subAccent: null,
+  fontW: null, subFontW: null   // null = 폰트 기본 굵기
 };
 // 새 게시물은 마지막으로 편집한 스타일을 이어받음
 let lastStyle = { ...STYLE_DEFAULT };
@@ -491,9 +492,9 @@ function drawCoverText(ctx, post) {
   const st = { ...STYLE_DEFAULT, ...post.st }, f = fontOf(st.font), size = st.fontSize, subSize = st.subSize;
   const boxW = W * st.boxW / 100, PAD = (W - boxW) / 2;
   const fs = fontOf(st.subFont || st.font);
-  const subW = fs.id === 'Pretendard' ? 500 : fs.w;   // 부제목은 한 단계 가볍게 (가능한 폰트만)
+  const titleW = st.fontW ?? f.w, subW = st.subFontW ?? (fs.id === 'Pretendard' ? 500 : fs.w);
   const subTrack = st.subTracking ?? st.tracking, subAccent = st.subAccent || st.accent;
-  const titleFont = `${f.w} ${size}px "${f.id}"`, subFont = `${subW} ${subSize}px "${fs.id}"`;
+  const titleFont = `${titleW} ${size}px "${f.id}"`, subFont = `${subW} ${subSize}px "${fs.id}"`;
   const hasTitle = !!post.coverText.trim(), hasSub = !!(post.subText || '').trim();
   ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
   const spacing = (sz, tr = st.tracking) => { if ('letterSpacing' in ctx) ctx.letterSpacing = (tr * sz / 100) + 'px'; };
@@ -539,7 +540,7 @@ function drawCoverText(ctx, post) {
   post._tb = maxX > minX ? { x: minX, y: y0, w: maxX - minX, h: blockH } : null;
   // 편집 화면에서 클릭·직접 입력에 쓰는 배치 정보
   post._lay = { colX: PAD + st.offX, colW: boxW, align: st.align, tracking: st.tracking,
-    title: { top: y0, h: Math.max(tH, tlh), lh: tlh, size, font: f.id, w: f.w, color: st.textColor, tr: st.tracking },
+    title: { top: y0, h: Math.max(tH, tlh), lh: tlh, size, font: f.id, w: titleW, color: st.textColor, tr: st.tracking },
     sub: { top: y0 + tH + (hasTitle ? st.subGap : 0), h: Math.max(sH, slh), lh: slh, size: subSize, font: fs.id, w: subW, color: st.subColor, tr: subTrack, has: hasSub } };
 }
 function drawOverlay(ctx, st) {
@@ -608,7 +609,8 @@ async function renderNow() {
   const all = [...posts, ...others];
   await Promise.all(all.filter(p => p.coverText.trim() || (p.subText || '').trim()).map(p => {
     const f = fontOf(p.st.font), fs = fontOf(p.st.subFont || p.st.font), txt = (p.coverText + (p.subText || '')).replace(/\s/g, '');
-    return Promise.all([document.fonts.load(`${f.w} 80px "${f.id}"`, txt), document.fonts.load(`${fs.id === 'Pretendard' ? 500 : fs.w} 40px "${fs.id}"`, txt)]).catch(() => {});
+    const tw = p.st.fontW ?? f.w, sw = p.st.subFontW ?? (fs.id === 'Pretendard' ? 500 : fs.w);
+    return Promise.all([document.fonts.load(`${tw} 80px "${f.id}"`, txt), document.fonts.load(`${sw} 40px "${fs.id}"`, txt)]).catch(() => {});
   }));
   const name = S.account.trim() || 'your.account';
   all.forEach(p => {
@@ -961,11 +963,13 @@ const mStyle = () => posts[modal.p].st;
 let textTarget = 'title';
 const TKEY = {   // [표지 문구 키, 부제목 키, 부제목 값이 없을 때 따라갈 키]
   size: ['fontSize', 'subSize'], tracking: ['tracking', 'subTracking', 'tracking'], lineH: ['lineH', 'subLineH'],
-  font: ['font', 'subFont', 'font'], color: ['textColor', 'subColor'], accent: ['accent', 'subAccent', 'accent'],
+  font: ['font', 'subFont', 'font'], weight: ['fontW', 'subFontW'], color: ['textColor', 'subColor'], accent: ['accent', 'subAccent', 'accent'],
 };
 const tKey = t => TKEY[t][textTarget === 'title' ? 0 : 1];
 function styleVal(key) {
   const st = { ...STYLE_DEFAULT, ...mStyle() };
+  if (key === 'fontW') return st.fontW ?? fontOf(st.font).w;
+  if (key === 'subFontW') { const fs = fontOf(st.subFont || st.font); return st.subFontW ?? (fs.id === 'Pretendard' ? 500 : fs.w); }
   if (st[key] != null) return st[key];
   const row = Object.values(TKEY).find(r => r[1] === key);
   return row && row[2] ? st[row[2]] : STYLE_DEFAULT[key];
