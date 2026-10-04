@@ -199,7 +199,6 @@ textarea.inline{position:absolute;margin:0;padding:0;border:0;border-radius:0;mi
   <div class="sec">
     <h3>데이터 입력</h3>
     <button class="btn" id="btnUpload">🖼️ 이미지 업로드</button>
-    <button class="btn" id="btnClear">🗑️ 목록 비우기</button>
     <button class="btn" id="btnClearDone" hidden></button>
     <input type="file" id="fileImgs" accept="image/*,.png,.PNG,.jpg,.jpeg,.webp,.gif,.bmp,.heic" multiple hidden>
     <input type="file" id="fileSwap" accept="image/*,.png,.PNG,.jpg,.jpeg,.webp,.gif,.bmp,.heic" hidden>
@@ -234,35 +233,12 @@ textarea.inline{position:absolute;margin:0;padding:0;border:0;border-radius:0;mi
 
   <div class="sec capsec" id="capSec">
     <h3>캡션 내용 <span class="badge" id="selBadge">게시물 없음</span></h3>
-    <textarea id="caption" placeholder="캡션에 넣을 문구를 붙여넣거나, 아래에 캡처 이미지를 첨부하세요. 영어는 번역하고, 한국어는 다듬어서 캡션으로 만들어 드려요." style="min-height:140px" disabled></textarea>
-    <div class="capsrc" id="capSrc"></div>
-    <input type="file" id="fileCap" accept="image/*,.png,.PNG,.jpg,.jpeg,.webp,.gif,.bmp,.heic" multiple hidden>
-    <div class="caprow">
-      <button class="btn primary" id="btnCap" disabled>✨ Claude로 캡션 만들기</button>
-      <button class="btn undo" id="btnCapUndo" hidden>되돌리기</button>
-    </div>
+    <textarea id="caption" placeholder="텍스트를 입력하세요" style="min-height:140px" disabled></textarea>
     <div class="lbl">계정 이름</div>
     <input type="text" data-bind="account" placeholder="your.account">
   </div>
 
-  <div class="sec" id="aiSec">
-    <h3>AI 연결 (Claude) <span class="badge" id="aiBadge">미확인</span></h3>
-    <div class="lbl">Worker 주소</div>
-    <input type="text" data-bind="aiUrl" placeholder="https://cardnews-ai.xxx.workers.dev">
-    <div class="lbl">접속 코드</div>
-    <input type="password" data-bind="aiToken">
-    <label class="check"><input type="checkbox" data-bind="credit"> 캡션에 원본 출처 표기</label>
-    <button class="btn" id="btnPing" style="margin-top:12px">연결 테스트</button>
-    <details class="more">
-      <summary>▸ 이미지 AI (Gemini · 선택)</summary>
-      <div class="lbl">이미지 화질</div>
-      <div class="seg" data-key="aiSize" style="grid-template-columns:1fr 1fr"><button data-val="1K">1K (저렴)</button><button data-val="2K">2K (고화질)</button></div>
-      <label class="check"><input type="checkbox" data-bind="aiClean"> 텍스트 제거</label>
-      <label class="check"><input type="checkbox" data-bind="aiRegen"> 미세 재생성</label>
-    </details>
-  </div>
 
-  <button class="btn" id="btnAI" disabled>⚡ AI 변환 (전체)</button>
   <button class="btn primary" id="btnZip" disabled>⬇ 전체 다운로드 (ZIP)</button>
 </aside>
 
@@ -711,7 +687,6 @@ function select(pi) {
 function syncSidebar() {
   const p = posts[selIdx];
   $('caption').disabled = !p; $('caption').value = p ? p.caption : '';
-  paintCapSrc();
   const b = $('selBadge'); b.textContent = p ? `${DAYS[p.day]}요일 ${posts.filter(q => q.day === p.day).indexOf(p) + 1}번` : '게시물 없음'; b.classList.toggle('sel', !!p);
 }
 
@@ -751,7 +726,7 @@ function buildCard(p, pi, ro) {
     <div class="pbar">${IC.heart}${IC.comment}${IC.repost}${IC.send}<span class="sp"></span>${IC.save}</div>
     <div class="pcap"><b></b><span class="txt"></span><div class="more">더 보기</div></div>
     <div class="pthumbs"></div>
-    ${ro ? '' : '<div class="pstatus"></div>'}`;
+`;
   const pimg = el.querySelector('.pimg');
   pimg.prepend(p.slides[p.active].canvas);
   const cap = el.querySelector('.pcap');
@@ -825,8 +800,6 @@ function buildCard(p, pi, ro) {
   el.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); el.classList.add('drop'); });
   el.addEventListener('dragleave', e => { if (!el.contains(e.relatedTarget)) el.classList.remove('drop'); });
   el.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); el.classList.remove('drop'); $('main').classList.remove('dropping'); addSlides(pi, e.dataTransfer.files); });
-  p.el.status.onclick = e => { e.stopPropagation(); if (!p.busy) processPost(p); };
-  paintStatus(p);
   return el;
 }
 
@@ -867,7 +840,6 @@ function rebuild() {
   $('btnZip').textContent = `⬇ ${DAYS[curDay]}요일 내 게시물 다운로드 (ZIP)`;
   const nDone = posts.filter(p => p.done).length;
   $('btnClearDone').hidden = !nDone; $('btnClearDone').textContent = `✓ 업로드 완료한 게시물 정리 (${nDone})`;
-  $('btnAI').disabled = !posts.length || aiRunning;
   const wrap = $('posts'); wrap.innerHTML = '';
   mine.forEach(([p, pi]) => wrap.appendChild(buildCard(p, pi, false)));
   syncSidebar();
@@ -1143,219 +1115,6 @@ $('btnZip').onclick = () => {
   exportZip(posts.filter(p => p.day === curDay), `cardnews_${DAYS[curDay]}_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.zip`);
 };
 
-/* ---------- AI ---------- */
-let aiRunning = false;
-const LANG_NAME = { ko: 'Korean', ja: 'Japanese', en: 'English' };
-const CREDIT_WORD = { ko: '출처', ja: '出典', en: 'Source' };
-const TITLE_SCHEMA = { type: 'OBJECT', properties: { original: { type: 'STRING' }, title: { type: 'STRING' }, source: { type: 'STRING' } }, required: ['title'] };
-const CAP_SCHEMA = { type: 'OBJECT', properties: { caption: { type: 'STRING' } }, required: ['caption'] };
-
-const titlePrompt = L => `This image is a social media card-news post. Find the main headline/title text overlaid on the image.
-Ignore watermarks, account names, logos and UI labels such as "SWIPE", "NEWS", "TRENDING".
-Translate the headline into natural, fluent ${L} that works as a punchy card-news cover title. Keep the meaning accurate.
-Keep it short (Korean/Japanese: about 40 characters max; English: about 12 words max).
-Insert line breaks (\\n) where a designer would break the lines, 2 to 4 lines.
-Wrap the single most important phrase in *asterisks* for emphasis (exactly one pair).
-Also report the publisher's brand/account name if it is visible (watermark or logo text), otherwise an empty string.
-Respond with JSON only, no other text: {"original": the headline as written, "title": the translated title, "source": publisher name}.`;
-
-function captionPrompt(L, lang, p, nImages) {
-  let t = `You are writing an Instagram caption in ${L} for a card-news account.\n\nSOURCE MATERIAL\n`;
-  if (nImages) t += `- ${nImages} attached screenshot(s) containing the text to use. Read all the text in them, in order (ignore app UI such as usernames, like counts, buttons, timestamps).\n`;
-  if (p.caption.trim()) t += `- Text provided by the user:\n---\n${p.caption}\n---\n`;
-  if (p.coverText.trim()) t += `- For context, the post's cover title is: "${p.coverText.replace(/\*/g, '')}"\n`;
-  t += `\nHOW TO HANDLE THE LANGUAGE
-- If the source is NOT in ${L} (e.g. English), translate it into natural, fluent ${L} — not word-for-word, the way a native writer would say it.
-- If the source is already in ${L}, do not translate; tidy it up and rewrite it so it reads better, keeping the meaning.
-
-Write it as a natural, engaging Instagram caption in ${L}:
-- first line is a hook
-- 2 to 5 short paragraphs, light emoji use
-- keep facts accurate, never invent facts, numbers or quotes
-- end with 5 to 10 relevant hashtags`;
-  if (S.credit && p.source) t += `\n- before the hashtags, add a credit line exactly like: "${CREDIT_WORD[lang]}: ${p.source}"`;
-  return t + `\nRespond with JSON only, no other text: {"caption": "..."}`;
-}
-const CLEAN_PROMPT = `Edit this image: remove ALL overlaid text and graphic text elements — headlines, captions, labels, badges and stickers (e.g. "SWIPE", "NEWS", "TRENDING"), and any social-media interface elements (icons, like counts, usernames).
-Also remove solid or gradient boxes that only existed to hold text.
-Fill the removed areas so they look like the natural continuation of the photo.
-Keep every person, animal, object, color, lighting and the composition exactly the same. Do not add anything new.
-Output a 4:5 portrait image. If more space is needed, extend the background naturally instead of stretching or cropping the main subjects.`;
-const REGEN_PROMPT = `Recreate this photo as a fresh, high-quality rendering that is almost identical to it:
-same subjects, poses, expressions, composition, framing, colors and lighting.
-Only introduce very subtle, natural variations in fine texture, small background details and grain.
-Do not add any text, letters, logos or watermarks. Keep the 4:5 portrait format.`;
-
-function imgToB64(img, max = 1536) {
-  const iw = iW(img), ih = iH(img), k = Math.min(1, max / Math.max(iw, ih));
-  const c = document.createElement('canvas'); c.width = Math.round(iw * k); c.height = Math.round(ih * k);
-  const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height);
-  return c.toDataURL('image/jpeg', 0.9).split(',')[1];
-}
-async function b64ToImg(b64, mime = 'image/png') {
-  const bin = atob(b64), u = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
-  return decodeImage(new Blob([u], { type: mime }));
-}
-async function api(path, body) {
-  if (!S.aiUrl.trim()) throw new Error('"AI 연결"에 Worker 주소를 넣어주세요');
-  let r;
-  try {
-    r = await fetch(S.aiUrl.trim().replace(/\/+$/, '') + path, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-App-Token': S.aiToken }, body: JSON.stringify(body)
-    });
-  } catch (e) { throw new Error('서버에 연결할 수 없어요 (주소·허용 사이트 확인)'); }
-  const d = await r.json().catch(() => ({ error: `응답을 읽을 수 없어요 (${r.status})` }));
-  if (!r.ok || d.error) throw new Error(d.error || `오류 ${r.status}`);
-  return d;
-}
-const parseJSON = t => { t = t.replace(/^```(?:json)?\s*|\s*```$/g, ''); try { return JSON.parse(t); } catch (e) { const m = t.match(/\{[\s\S]*\}/); if (m) return JSON.parse(m[0]); throw new Error('AI 응답 형식 오류'); } };
-
-function paintStatus(p) {
-  const el = p.el && p.el.status; if (!el) return;
-  const st = p.status || { state: 'idle' };
-  el.className = 'pstatus ' + st.state;
-  el.title = st.errs ? st.errs.join('\n') : '';
-  if (st.state === 'run') el.innerHTML = `<span class="spin"></span>${st.msg}`;
-  else if (st.state === 'done') el.textContent = '✓ AI 변환 완료 · 다시 변환';
-  else if (st.state === 'err') el.textContent = `⚠ 일부 실패 (${st.errs.length}) · 다시 시도`;
-  else el.textContent = '⚡ 이 게시물 AI 변환';
-}
-
-async function processPost(p) {
-  if (p.busy) return;
-  if (!S.aiUrl.trim()) { toast('왼쪽 "AI 연결"을 먼저 설정해주세요'); $('aiSec').scrollIntoView({ behavior: 'smooth' }); return; }
-  p.busy = true;
-  const L = LANG_NAME[S.lang], lang = S.lang;
-  const capSources = captionSources(p);
-  const imgSlides = p.slides.filter((sl, i) => !isCapIdx(i) && sl.orig);
-  const perImg = (S.aiClean ? 1 : 0) + (S.aiRegen ? 1 : 0);
-  const total = 1 + ((capSources.length || p.caption.trim()) ? 1 : 0) + imgSlides.length * perImg;
-  let done = 0; const errs = [], doing = new Set();
-  const paint = () => { p.status = { state: 'run', msg: `${[...doing].join(' · ') || '처리 중'} (${done}/${total})` }; paintStatus(p); };
-  const step = async (label, fn) => {
-    doing.add(label); paint();
-    try { await fn(); } catch (e) { errs.push(`${label}: ${e.message}`); }
-    finally { doing.delete(label); done++; paint(); }
-  };
-
-  const textChain = (async () => {
-    if (p.slides[0].orig) await step('제목 번역', async () => {
-      const d = await api('/claude', { prompt: titlePrompt(L), images: [imgToB64(p.slides[0].orig)] });
-      const j = parseJSON(d.text);
-      if (j.title) p.coverText = j.title.trim();
-      p.source = (j.source || '').trim();
-      render();
-    });
-    if (capSources.length || p.caption.trim()) await step('캡션 작성', () => writeCaption(p));
-  })();
-  const imgChains = imgSlides.map(async (sl, k) => {
-    const n = imgSlides.length > 1 ? ` ${k + 1}` : '';
-    let base = sl.orig;
-    if (S.aiClean) await step('텍스트 제거' + n, async () => {
-      const d = await api('/image', { prompt: CLEAN_PROMPT, images: [imgToB64(sl.orig)], aspectRatio: '4:5', imageSize: S.aiSize });
-      sl.clean = await b64ToImg(d.image, d.mimeType); sl.cleanManual = false; base = sl.clean; setVersion(sl, 'clean'); render();
-    });
-    if (S.aiRegen) await step('재생성' + n, async () => {
-      const d = await api('/image', { prompt: REGEN_PROMPT, images: [imgToB64(base)], aspectRatio: '4:5', imageSize: S.aiSize });
-      sl.regen = await b64ToImg(d.image, d.mimeType); setVersion(sl, 'regen'); render();
-    });
-  });
-  await Promise.all([textChain, ...imgChains]);
-  p.busy = false;
-  p.status = errs.length ? { state: 'err', errs } : { state: 'done' };
-  if (errs.length) toast(errs[0]);
-  rebuild();
-}
-
-// 캡션 재료: 사이드바에 첨부한 캡처 + (설정 시) 2번째 장
-function captionSources(p) {
-  const list = [...(p.capImgs || [])];
-  if (S.capSlide && p.slides[1]) list.push(p.slides[1].orig);
-  return list;
-}
-async function writeCaption(p) {
-  const imgs = captionSources(p);
-  if (!imgs.length && !p.caption.trim()) throw new Error('문구를 입력하거나 캡처를 첨부해주세요');
-  const d = await api('/claude', { prompt: captionPrompt(LANG_NAME[S.lang], S.lang, p, imgs.length), images: imgs.map(i => imgToB64(i, 1800)) });
-  const j = parseJSON(d.text);
-  if (!j.caption) throw new Error('캡션이 비어 있어요');
-  p.capPrev = p.caption;
-  p.caption = j.caption.trim();
-  if (posts[selIdx] === p) { $('caption').value = p.caption; $('btnCapUndo').hidden = false; }
-  render();
-}
-function paintCapSrc() {
-  const p = posts[selIdx], box = $('capSrc'); box.innerHTML = '';
-  $('btnCap').disabled = !p || !!(p && p.capBusy);
-  $('btnCap').textContent = p && p.capBusy ? '작성 중…' : '✨ Claude로 캡션 만들기';
-  $('btnCapUndo').hidden = !p || p.capPrev === undefined;
-  if (!p) return;
-  p.capImgs.forEach((img, i) => {
-    const t = document.createElement('div'); t.className = 'capthumb';
-    const c = document.createElement('canvas'); c.width = 112; c.height = 112;
-    const x = c.getContext('2d'), k = Math.max(112 / iW(img), 112 / iH(img));
-    x.drawImage(img, (112 - iW(img) * k) / 2, (112 - iH(img) * k) / 2, iW(img) * k, iH(img) * k);
-    const b = document.createElement('button'); b.textContent = '✕';
-    b.onclick = () => { p.capImgs.splice(i, 1); paintCapSrc(); };
-    t.append(c, b); box.appendChild(t);
-  });
-  const add = document.createElement('button'); add.className = 'capadd';
-  add.textContent = p.capImgs.length ? '+ 추가' : '📎 캡처 이미지 첨부';
-  add.onclick = () => $('fileCap').click();
-  box.appendChild(add);
-}
-async function addCapImgs(files) {
-  const p = posts[selIdx]; if (!p) { toast('게시물을 먼저 선택해주세요'); return; }
-  const imgs = await decodeFiles(files); if (!imgs.length) return;
-  p.capImgs.push(...imgs); paintCapSrc();
-}
-$('fileCap').onchange = e => { addCapImgs(e.target.files); e.target.value = ''; };
-$('btnCap').onclick = async () => {
-  const p = posts[selIdx]; if (!p || p.capBusy) return;
-  if (!S.aiUrl.trim()) { toast('왼쪽 "AI 연결"을 먼저 설정해주세요'); $('aiSec').scrollIntoView({ behavior: 'smooth' }); return; }
-  p.capBusy = true; paintCapSrc();
-  try { await writeCaption(p); toast('캡션을 만들었어요'); }
-  catch (e) { toast(e.message); }
-  finally { p.capBusy = false; paintCapSrc(); }
-};
-$('btnCapUndo').onclick = () => {
-  const p = posts[selIdx]; if (!p || p.capPrev === undefined) return;
-  [p.caption, p.capPrev] = [p.capPrev, p.caption];
-  $('caption').value = p.caption; render();
-};
-// 캡션 영역에 끌어다 놓기 / 캡션 칸에 이미지 붙여넣기 → 캡처 첨부
-const capSec = $('capSec');
-capSec.addEventListener('dragover', e => { e.preventDefault(); capSec.classList.add('dropping'); });
-capSec.addEventListener('dragleave', e => { if (!capSec.contains(e.relatedTarget)) capSec.classList.remove('dropping'); });
-capSec.addEventListener('drop', e => { e.preventDefault(); capSec.classList.remove('dropping'); addCapImgs(e.dataTransfer.files); });
-$('caption').addEventListener('paste', e => {
-  const files = [...(e.clipboardData?.items || [])].filter(it => it.kind === 'file').map(it => it.getAsFile()).filter(Boolean);
-  if (files.length) { e.preventDefault(); addCapImgs(files); }
-});
-
-$('btnAI').onclick = async () => {
-  if (!S.aiUrl.trim()) { toast('왼쪽 "AI 연결"을 먼저 설정해주세요'); $('aiSec').scrollIntoView({ behavior: 'smooth' }); return; }
-  const list = posts.filter(p => !p.busy && (!p.status || p.status.state !== 'done'));
-  if (!list.length) { toast('모두 변환됐어요 (카드 아래에서 다시 변환 가능)'); return; }
-  aiRunning = true; $('btnAI').disabled = true; $('btnAI').textContent = `⚡ 변환 중… (0/${list.length})`;
-  for (let i = 0; i < list.length; i++) {
-    await processPost(list[i]);
-    $('btnAI').textContent = `⚡ 변환 중… (${i + 1}/${list.length})`;
-  }
-  aiRunning = false; $('btnAI').textContent = '⚡ AI 변환 (전체)'; $('btnAI').disabled = !posts.length;
-  toast('AI 변환이 끝났어요');
-};
-function setAiBadge(ok) {
-  const b = $('aiBadge');
-  b.textContent = ok === null ? '미확인' : ok ? '연결됨' : '실패';
-  b.classList.toggle('sel', !!ok);
-}
-$('btnPing').onclick = async () => {
-  try { const d = await api('/ping', {}); setAiBadge(true); toast(d.claude ? `연결 성공 · ${d.claudeModel}` : '연결은 됐지만 ANTHROPIC_API_KEY가 없어요'); }
-  catch (e) { setAiBadge(false); toast(e.message); }
-};
-
 /* ---------- controls ---------- */
 function fmt(key, v) {
   if (key === 'overlay') return Math.round(v * 100) + '%';
@@ -1385,7 +1144,6 @@ document.querySelectorAll('[data-bind]').forEach(el => {
     if (out) out.textContent = fmt(k, S[k]);
     save();
     if (k === 'capSlide') rebuild(); else render();
-    if (k === 'aiUrl' || k === 'aiToken') setAiBadge(null);
   });
 });
 $('caption').addEventListener('input', () => { const p = posts[selIdx]; if (!p) return; p.caption = $('caption').value; render(); });
@@ -1414,11 +1172,6 @@ $('btnUpload').onclick = () => $('fileImgs').click();
 $('fileImgs').onchange = e => { addPosts(e.target.files); e.target.value = ''; };
 $('fileSwap').onchange = e => { if (swapTarget) swapImage(swapTarget.pi, swapTarget.si, e.target.files); e.target.value = ''; };
 $('fileAdd').onchange = e => { if (addTarget >= 0) addSlides(addTarget, e.target.files); e.target.value = ''; };
-$('btnClear').onclick = () => {
-  if (!posts.length) return;
-  if (!confirm(`게시물 ${posts.length}개를 모두 삭제할까요?` + (user ? '\n(저장된 데이터도 함께 지워져요)' : ''))) return;
-  posts = []; selIdx = -1; rebuild(); toast('목록을 비웠어요');
-};
 $('btnClearDone').onclick = () => {
   const n = posts.filter(p => p.done).length; if (!n) return;
   if (!confirm(`업로드 완료한 게시물 ${n}개를 삭제할까요?`)) return;
