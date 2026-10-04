@@ -13,6 +13,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
+@font-face{font-family:'QumpellkaNo12';font-display:swap;
+  src:url('QumpellkaNo12.otf') format('opentype'),url('QumpellkaNo12.ttf') format('truetype'),
+      url('fonts/QumpellkaNo12.otf') format('opentype'),url('fonts/QumpellkaNo12.ttf') format('truetype'),
+      url('qumpellkano12.otf') format('opentype'),url('qumpellkano12.ttf') format('truetype')}
 :root{--bg:#000;--panel:#0b0b0b;--card:#121212;--line:#242424;--line2:#363636;--text:#ececec;--muted:#8a8a8a;--danger:#ff5d5d}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -204,14 +208,27 @@ textarea.inline{position:absolute;margin:0;padding:0;border:0;border-radius:0;mi
 
   <div class="sec">
     <h3>로고 설정 <button class="link" id="btnLogoDel" hidden>제거</button></h3>
-    <div class="logoprev" id="logoPrev" hidden><img id="logoImgPrev" alt=""></div>
-    <button class="btn" id="btnLogo">로고 업로드</button>
-    <input type="file" id="fileLogo" accept="image/*,.png,.PNG,.jpg,.jpeg,.webp,.gif,.bmp,.heic" hidden>
+    <div class="seg" data-key="logoMode" style="grid-template-columns:1fr 1fr;margin-bottom:10px"><button data-val="image">이미지</button><button data-val="text">텍스트</button></div>
+    <div id="logoImgBox">
+      <div class="logoprev" id="logoPrev" hidden><img id="logoImgPrev" alt=""></div>
+      <button class="btn" id="btnLogo">로고 업로드</button>
+      <input type="file" id="fileLogo" accept="image/*,.png,.PNG,.jpg,.jpeg,.webp,.gif,.bmp,.heic" hidden>
+    </div>
+    <div id="logoTextBox" hidden>
+      <input type="text" data-bind="logoText" placeholder="텍스트를 입력하세요">
+      <div class="lbl">폰트</div>
+      <select id="logoFont"></select>
+      <div class="two">
+        <div><div class="lbl">크기 (px)</div><div class="sizectl" id="logoSz"><button>−</button><input type="number"><button>+</button></div></div>
+        <div><div class="lbl">색</div><input type="color" data-bind="logoColor"></div>
+      </div>
+      <div class="lbl" id="logoFontWarn" hidden style="color:var(--danger)">Qumpellka 폰트 파일을 찾지 못했어요</div>
+    </div>
     <div class="lbl">로고 위치</div>
     <div class="posrow"><span>상단</span><div class="seg" data-key="logoPos"><button data-val="tl">왼쪽</button><button data-val="tc">중간</button><button data-val="tr">오른쪽</button></div></div>
     <div class="posrow"><span>하단</span><div class="seg" data-key="logoPos"><button data-val="bl">왼쪽</button><button data-val="bc">중간</button><button data-val="br">오른쪽</button></div></div>
-    <div class="lbl">로고 크기 <span data-out="logoSize"></span></div>
-    <input type="range" min="6" max="40" step="1" data-bind="logoSize">
+    <div id="logoImgSize"><div class="lbl">로고 크기 <span data-out="logoSize"></span></div>
+    <input type="range" min="6" max="40" step="1" data-bind="logoSize"></div>
     <label class="check"><input type="checkbox" data-bind="logoAll"> 모든 장에 로고 표시</label>
   </div>
 
@@ -358,9 +375,11 @@ const FONTS = [
   { id: 'Inter',             label: 'Inter', w: 800, g: 'English' },
   { id: 'Playfair Display',  label: 'Playfair Display', w: 800, g: 'English' },
   { id: 'Anton',             label: 'Anton', w: 400, g: 'English' },
+  { id: 'QumpellkaNo12',     label: 'Qumpellka No.12 (필기체)', w: 400, g: 'English' },
 ];
 const DEFAULT_FONT = { ko: 'Pretendard', ja: 'Noto Sans JP', en: 'Inter' };
 const DEFAULTS = { lang: 'ko', logoPos: 'tl', logoSize: 16, logoAll: true, account: '',
+  logoMode: 'image', logoText: 'Recent', logoFont: 'QumpellkaNo12', logoTextSize: 64, logoColor: '#ffffff',
   aiUrl: '', aiToken: '', aiSize: '1K', aiClean: false, aiRegen: false, capSlide: true, credit: true };
 const STYLE_DEFAULT = {
   font: 'Pretendard', fontSize: 96, tracking: -3, textPos: 'bottom', align: 'center',
@@ -525,9 +544,23 @@ function drawOverlay(ctx, st) {
   ctx.fillStyle = g;
   top ? ctx.fillRect(0, 0, W, H * 0.6) : ctx.fillRect(0, H * 0.4, W, H * 0.6);
 }
+const hasLogo = () => S.logoMode === 'text' ? !!(S.logoText || '').trim() : !!logo;
 function drawLogo(ctx) {
-  const lw = W * S.logoSize / 100, lh = lw * iH(logo) / iW(logo), m = 56;
-  const col = S.logoPos[1], row = S.logoPos[0];
+  const m = 56, col = S.logoPos[1], row = S.logoPos[0];
+  if (S.logoMode === 'text') {   // 텍스트 로고
+    const f = fontOf(S.logoFont), size = S.logoTextSize;
+    ctx.save();
+    ctx.font = `${f.w} ${size}px "${S.logoFont}", serif`;
+    ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+    const w = ctx.measureText(S.logoText).width;
+    const x = col === 'l' ? m : col === 'r' ? W - m - w : (W - w) / 2;
+    const y = row === 't' ? m + size * 0.8 : H - m - size * 0.22;
+    ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = size * 0.2;
+    ctx.fillStyle = S.logoColor; ctx.fillText(S.logoText, x, y);
+    ctx.restore();
+    return;
+  }
+  const lw = W * S.logoSize / 100, lh = lw * iH(logo) / iW(logo);
   const x = col === 'l' ? m : col === 'r' ? W - m - lw : (W - lw) / 2;
   const y = row === 't' ? m : H - m - lh;
   ctx.drawImage(logo, x, y, lw, lh);
@@ -549,12 +582,22 @@ function drawSlide(ctx, sl, post, isCover) {
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   }
   if (isCover && (post.coverText.trim() || (post.subText || '').trim())) { drawOverlay(ctx, post.st); drawCoverText(ctx, post); }
-  if (logo && (S.logoAll || isCover)) drawLogo(ctx);
+  if (hasLogo() && (S.logoAll || isCover)) drawLogo(ctx);
 }
 
 let raf = 0;
 function render() { cancelAnimationFrame(raf); raf = requestAnimationFrame(renderNow); }
 async function renderNow() {
+  if (S.logoMode === 'text' && (S.logoText || '').trim()) {
+    const f = fontOf(S.logoFont);
+    await document.fonts.load(`${f.w} ${S.logoTextSize}px "${S.logoFont}"`, S.logoText).catch(() => {});
+    if (S.logoFont === 'QumpellkaNo12') {
+      try {
+        const face = [...document.fonts].find(x => x.family.replace(/["']/g, '') === 'QumpellkaNo12');
+        $('logoFontWarn').hidden = !face || face.status !== 'error';
+      } catch (e) {}
+    } else $('logoFontWarn').hidden = true;
+  }
   const all = [...posts, ...others];
   await Promise.all(all.filter(p => p.coverText.trim() || (p.subText || '').trim()).map(p => {
     const f = fontOf(p.st.font), fs = fontOf(p.st.subFont || p.st.font), txt = (p.coverText + (p.subText || '')).replace(/\s/g, '');
@@ -1331,7 +1374,7 @@ function syncControls() {
     if (el.type === 'checkbox') el.checked = !!S[k]; else el.value = S[k] ?? '';
     const out = document.querySelector(`[data-out="${k}"]`); if (out) out.textContent = fmt(k, S[k]);
   });
-  syncSegs(); $('lang').value = S.lang;
+  syncSegs(); $('lang').value = S.lang; paintLogoMode();
 }
 document.querySelectorAll('[data-bind]').forEach(el => {
   const k = el.dataset.bind;
@@ -1354,7 +1397,7 @@ function syncSegs() {
 document.querySelectorAll('.seg[data-key]').forEach(seg => {
   seg.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
-    S[seg.dataset.key] = b.dataset.val; syncSegs(); save(); render();
+    S[seg.dataset.key] = b.dataset.val; syncSegs(); save(); paintLogoMode(); render();
   });
 });
 syncSegs();
@@ -1393,10 +1436,28 @@ document.addEventListener('paste', e => {
   if (files.length) { e.preventDefault(); addPosts(files); }
 });
 
+function paintLogoMode() {
+  const text = S.logoMode === 'text';
+  $('logoImgBox').hidden = text; $('logoImgSize').hidden = text; $('logoTextBox').hidden = !text;
+  $('btnLogoDel').hidden = text || !logoSrc;
+  if (!$('logoFont').options.length) $('logoFont').innerHTML = FONT_OPTIONS;
+  $('logoFont').value = S.logoFont; $('logoSz').children[1].value = S.logoTextSize;
+}
+$('logoFont').addEventListener('change', () => { S.logoFont = $('logoFont').value; save(); render(); });
+(() => {
+  const [dn, inp, up] = $('logoSz').children;
+  const set = v => { S.logoTextSize = Math.max(12, Math.min(300, Math.round(+v || S.logoTextSize))); inp.value = S.logoTextSize; save(); render(); };
+  inp.addEventListener('change', () => set(inp.value));
+  [[dn, -1], [up, 1]].forEach(([b, d]) => {
+    let hold = 0;
+    b.addEventListener('pointerdown', () => { set(S.logoTextSize + d); clearTimeout(hold); hold = setTimeout(() => { hold = setInterval(() => set(S.logoTextSize + d), 70); }, 400); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, () => { clearTimeout(hold); clearInterval(hold); }));
+  });
+})();
 async function setLogo(src) {
   try { logo = src ? await loadImg(src) : null; } catch (e) { logo = null; src = null; toast('로고 파일을 열 수 없어요'); }
   logoSrc = src;
-  $('logoPrev').hidden = !src; $('btnLogoDel').hidden = !src;
+  $('logoPrev').hidden = !src; $('btnLogoDel').hidden = !src || S.logoMode === 'text';
   if (src) $('logoImgPrev').src = src;
   $('btnLogo').textContent = src ? '로고 변경' : '로고 업로드';
   render();
@@ -1695,6 +1756,7 @@ if (typeof firebase !== 'undefined' && FIREBASE_CONFIG.apiKey) {
   setSync('local');
 }
 
+paintLogoMode();
 rebuild();
 </script>
 </body>
