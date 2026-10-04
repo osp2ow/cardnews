@@ -266,6 +266,8 @@ textarea.inline{position:absolute;margin:0;padding:0;border:0;border-radius:0;mi
   <div class="sec capsec" id="capSec">
     <h3>캡션 내용 <span class="badge" id="selBadge">게시물 없음</span></h3>
     <textarea id="caption" placeholder="텍스트를 입력하세요" style="min-height:140px" disabled></textarea>
+    <div class="lbl">마무리 문구 <span>{아이디} = 계정 아이디</span></div>
+    <textarea id="footerTa" style="min-height:100px"></textarea>
   </div>
 
 
@@ -630,7 +632,8 @@ async function renderNow() {
     });
     if (p.el) {
       p.el.name.textContent = name;
-      if (p.caption.trim()) { p.el.txt.textContent = p.caption; p.el.txt.className = 'txt'; }
+      const full = fullCaption(p);
+      if (full) { p.el.txt.textContent = full; p.el.txt.className = 'txt'; }
       else { p.el.txt.textContent = '왼쪽 "캡션 내용"에 입력하면 여기에 표시됩니다.'; p.el.txt.className = 'txt ph'; }
     }
   });
@@ -1191,11 +1194,11 @@ async function downloadImages(p) {
   toast(`이미지 ${list.length}장 다운로드`);
 }
 async function copyCaption(p) {
-  const t = (p.caption || '').trim();
+  const full = fullCaption(p), t = full;
   if (!t) { toast('캡션이 비어 있어요'); return; }
-  try { await navigator.clipboard.writeText(p.caption); }
+  try { await navigator.clipboard.writeText(full); }
   catch (e) {   // 클립보드 권한이 막힌 환경용
-    const ta = document.createElement('textarea'); ta.value = p.caption; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    const ta = document.createElement('textarea'); ta.value = full; ta.style.position = 'fixed'; ta.style.opacity = '0';
     document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (err) {} ta.remove();
   }
   toast('캡션을 복사했어요');
@@ -1215,7 +1218,7 @@ async function exportZip(list, filename) {
       const blob = await new Promise(r => p.slides[i].canvas.toBlob(r, 'image/jpeg', 0.95));
       dir.file(`${pad(++n)}.jpg`, blob);
     }
-    if (p.caption.trim()) dir.file('caption.txt', p.caption);
+    if (fullCaption(p)) dir.file('caption.txt', fullCaption(p));
   }
   saveBlob(await zip.generateAsync({ type: 'blob' }), filename);
   toast('다운로드 완료');
@@ -1344,6 +1347,14 @@ const acct = () => accounts.find(a => a.id === curAcct) || accounts[0] || null;
 const acctOf = p => (p.account && accounts.some(a => a.id === p.account)) ? p.account : (accounts[0] && accounts[0].id);
 const inAcct = p => !acct() || acctOf(p) === acct().id;
 const escapeHtml = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// 캡션 마무리 문구 (계정별, {아이디}는 계정 아이디로 자동 치환)
+const DEFAULT_FOOTER = 'ㅡ\n\n팔로우 • 좋아요 • 공유 • 리포스트는 큰 힘이 됩니다!\n더 많은 정보는 {아이디}';
+const handleAt = a => !a ? '' : a.handle ? '@' + a.handle.replace(/^@/, '') : a.name;
+const footerOf = a => (a ? (a.footer ?? DEFAULT_FOOTER) : '').split('{아이디}').join(handleAt(a)).trim();
+function fullCaption(p) {
+  const a = accounts.find(x => x.id === acctOf(p));
+  return [(p.caption || '').trim(), footerOf(a)].filter(Boolean).join('\n\n');
+}
 const acctHandle = () => { const a = acct(); return a ? ((a.handle || '').replace(/^@/, '') || a.name) : 'your.account'; };
 function logoFromS() { const l = {}; for (const [k, f] of Object.entries(LOGO_MAP)) l[f] = S[k]; l.image = logoSrc || ''; return l; }
 function newAccount(name, handle) { return { id: uid(), name: name || 'Recent', handle: handle || '', order: Date.now(), logo: logoFromS() }; }
@@ -1374,7 +1385,7 @@ function scheduleAcctSave(a) {
   acctTimers[a.id] = setTimeout(() => {
     saveLocalAccounts();
     if (db && user) {
-      const doc = { name: a.name, handle: a.handle || '', order: a.order || 0, logo: { ...a.logo, image: '' } };
+      const doc = { name: a.name, handle: a.handle || '', footer: a.footer ?? DEFAULT_FOOTER, order: a.order || 0, logo: { ...a.logo, image: '' } };
       try { if (a.logo.image && logo && a.id === curAcct) doc.logo.image = compressImg(logo, { max: 800, png: true }); else doc.logo.image = a.logo.image || ''; } catch (e) {}
       col('accounts').doc(a.id).set(doc).catch(e => toast('계정 저장 실패: ' + e.message));
     }
@@ -1390,6 +1401,7 @@ function paintAcctUI() {
   paintAcctSelect();
   if (document.activeElement !== $('acctName')) $('acctName').value = a ? a.name : '';
   if (document.activeElement !== $('acctHandle')) $('acctHandle').value = a ? (a.handle || '') : '';
+  if (document.activeElement !== $('footerTa')) $('footerTa').value = a ? (a.footer ?? DEFAULT_FOOTER) : '';
   $('acctDel').hidden = accounts.length <= 1;
 }
 $('acctSel').onchange = () => { curAcct = $('acctSel').value; applyAcct(); toast(`${acct().name} 계정으로 바꿨어요`); };
@@ -1410,6 +1422,10 @@ $('acctName').addEventListener('input', () => {
 $('acctHandle').addEventListener('input', () => {
   const a = acct(); if (!a) return;
   a.handle = $('acctHandle').value.trim(); paintAcctSelect(); scheduleAcctSave(a); render();
+});
+$('footerTa').addEventListener('input', () => {
+  const a = acct(); if (!a) return;
+  a.footer = $('footerTa').value; scheduleAcctSave(a); render();
 });
 $('acctDel').onclick = () => {
   const a = acct(); if (!a || accounts.length <= 1) return;
