@@ -160,17 +160,21 @@ details.more summary::-webkit-details-marker{display:none}
 .textbody{animation:slideDown .18s ease-out;border-top:1px solid var(--line);margin-top:12px;padding-top:2px}
 @keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
 #mTextToggle.on{background:#e9e9e9;color:#000;border-color:#e9e9e9}
+.pactions{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 14px 14px;border-top:1px solid var(--line)}
+.pactions .btn{height:38px;font-size:13px;margin:0}
 .pstatus{display:flex;align-items:center;justify-content:center;gap:6px;padding:12px;color:#5f5f5f;font-size:12px;letter-spacing:.12em;border-top:1px solid var(--line)}
 
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
 .modal.open{display:flex}
-.mbox{background:#0b0b0b;border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;gap:18px;max-height:96vh;max-width:980px;width:100%;overflow:auto}
+.mbox{background:#0b0b0b;border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;gap:18px;max-height:96vh;max-width:980px;width:100%;overflow-x:hidden;overflow-y:auto}
 .mview{height:min(80vh,720px);aspect-ratio:4/5;flex-shrink:0;overflow:auto;border-radius:8px;background:#111;max-width:100%}
 .mstage{position:relative;width:calc(100% * var(--vz,1))}
 .mstage canvas{width:100%;height:auto;aspect-ratio:4/5;display:block;cursor:grab;touch-action:none}
 textarea.inline{position:absolute;margin:0;padding:0;border:0;border-radius:0;min-height:0;outline:2px dashed #4a9eff;outline-offset:8px;background:rgba(0,0,0,.28);resize:none;overflow:hidden;white-space:pre-wrap;word-break:keep-all;overflow-wrap:break-word;caret-color:#4a9eff}
 .mstage canvas:active{cursor:grabbing}
-.mside{flex:1;min-width:240px;display:flex;flex-direction:column;overflow-y:auto;max-height:calc(96vh - 32px);padding-right:4px}
+.mside{flex:1;min-width:240px;display:flex;flex-direction:column;overflow-x:hidden;overflow-y:auto;max-height:calc(96vh - 32px);padding-right:4px}
+.mside .two>div,.sizectl{min-width:0}
+.sizectl input{min-width:0}
 .mside h4{margin:2px 0 4px;font-size:15px}
 .mside .grow{flex:1}
 @media(max-width:760px){.mbox{flex-direction:column}.mview{height:auto;width:100%}}
@@ -327,7 +331,7 @@ textarea.inline{position:absolute;margin:0;padding:0;border:0;border-radius:0;mi
         <button class="btn" id="mUndo" disabled>↶ 되돌리기</button>
         <button class="btn" id="mReset" style="margin-top:0">위치 초기화</button>
       </div>
-      <button class="btn primary" id="mClose">닫기</button>
+      <button class="btn primary" id="mClose" style="margin-top:18px;flex-shrink:0">닫기</button>
     </div>
   </div>
 </div>
@@ -718,14 +722,15 @@ function buildCard(p, pi, ro) {
   const el = document.createElement('div');
   el.className = 'post' + (!ro && pi === selIdx ? ' sel' : '') + (p.done ? ' isdone' : '') + (ro ? ' ro' : '');
   const tools = ro
-    ? `<button title="이 게시물 다운로드">${IC.down}</button>`
-    : `<button title="이미지 교체 (Gemini 편집본)">${IC.swap}</button><button class="${p.done ? 'ok' : ''}" title="업로드 완료 표시">${IC.check}</button><button title="이 게시물 다운로드">${IC.down}</button><button title="게시물 삭제">${IC.trash}</button>`;
+    ? ''
+    : `<button title="이미지 교체 (Gemini 편집본)">${IC.swap}</button><button class="${p.done ? 'ok' : ''}" title="업로드 완료 표시">${IC.check}</button><button title="게시물 삭제">${IC.trash}</button>`;
   el.innerHTML = `
     <div class="pimg"><div class="ptools">${tools}</div>
       <div class="pnum">${p.active + 1} / ${p.slides.length}</div></div>
     <div class="pbar">${IC.heart}${IC.comment}${IC.repost}${IC.send}<span class="sp"></span>${IC.save}</div>
     <div class="pcap"><b></b><span class="txt"></span><div class="more">더 보기</div></div>
     <div class="pthumbs"></div>
+    <div class="pactions"><button class="btn" data-a="img">이미지 다운로드</button><button class="btn" data-a="cap">캡션 복사</button></div>
 `;
   const pimg = el.querySelector('.pimg');
   pimg.prepend(p.slides[p.active].canvas);
@@ -748,13 +753,12 @@ function buildCard(p, pi, ro) {
   });
   p.el = { name: cap.querySelector('b'), txt: cap.querySelector('.txt'), status: el.querySelector('.pstatus') };
   const btns = el.querySelectorAll('.ptools button');
-  if (ro) {
-    btns[0].onclick = e => { e.stopPropagation(); exportZip([p], `${nicks[p.owner] || 'post'}_${DAYS[p.day]}.zip`); };
-    return el;
-  }
+  el.querySelector('[data-a="img"]').onclick = e => { e.stopPropagation(); downloadImages(p); };
+  el.querySelector('[data-a="cap"]').onclick = e => { e.stopPropagation(); copyCaption(p); };
+  if (ro) return el;
 
   // ----- 내 게시물 전용 -----
-  const [bSwap, bDone, bDown, bDel] = btns;
+  const [bSwap, bDone, bDel] = btns;
   const daySel = document.createElement('select'); daySel.className = 'daysel'; daySel.title = '요일 옮기기';
   daySel.innerHTML = DAYS.map((d, i) => `<option value="${i}" ${i === p.day ? 'selected' : ''}>${d}요일</option>`).join('');
   daySel.onclick = e => e.stopPropagation();
@@ -762,7 +766,6 @@ function buildCard(p, pi, ro) {
   pimg.appendChild(daySel);
   bDone.onclick = e => { e.stopPropagation(); p.done = !p.done; rebuild(); };
   bSwap.onclick = e => { e.stopPropagation(); swapTarget = { pi, si: p.active }; $('fileSwap').click(); };
-  bDown.onclick = e => { e.stopPropagation(); exportZip([p], `post_${DAYS[p.day]}_${pad(pi + 1)}.zip`); };
   bDel.onclick = e => { e.stopPropagation(); if (confirm('이 게시물을 삭제할까요?')) removePost(pi); };
   // 큰 이미지 위에 놓으면 = 교체, 카드의 다른 곳에 놓으면 = 장 추가
   pimg.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); el.classList.add('drop'); pimg.style.outline = '3px solid #4a9eff'; pimg.style.outlineOffset = '-3px'; });
@@ -1090,6 +1093,30 @@ $('modal').onclick = e => { if (e.target === $('modal')) closeEditor(); };
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && modal.p >= 0) closeEditor(); });
 
 /* ---------- export ---------- */
+// 게시물의 사진을 장 수만큼 각각 JPG로 저장
+async function downloadImages(p) {
+  await renderNow();
+  const list = p.slides.filter(sl => sl.img);
+  if (!list.length) { toast('사진이 없어요'); return; }
+  const who = p.owner && user && p.owner !== user.uid ? (nicks[p.owner] || 'post') : 'post';
+  const base = `${who}_${DAYS[p.day]}_${String(p.order || Date.now()).slice(-4)}`;
+  for (let i = 0; i < list.length; i++) {
+    const blob = await new Promise(r => list[i].canvas.toBlob(r, 'image/jpeg', 0.95));
+    saveBlob(blob, list.length > 1 ? `${base}_${pad(i + 1)}.jpg` : `${base}.jpg`);
+    if (i < list.length - 1) await new Promise(r => setTimeout(r, 350));   // 연속 다운로드 간격
+  }
+  toast(`이미지 ${list.length}장 다운로드`);
+}
+async function copyCaption(p) {
+  const t = (p.caption || '').trim();
+  if (!t) { toast('캡션이 비어 있어요'); return; }
+  try { await navigator.clipboard.writeText(p.caption); }
+  catch (e) {   // 클립보드 권한이 막힌 환경용
+    const ta = document.createElement('textarea'); ta.value = p.caption; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (err) {} ta.remove();
+  }
+  toast('캡션을 복사했어요');
+}
 function saveBlob(blob, name) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
