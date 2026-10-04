@@ -181,6 +181,18 @@ input.daysel{color-scheme:dark}
 .pactions .btn{height:38px;font-size:13px;margin:0}
 .acctsel{display:grid;grid-template-columns:1fr 44px;gap:6px}
 .acctsel .btn{height:44px;font-size:20px;margin:0}
+.kindseg{grid-template-columns:1fr 1fr;width:230px}
+.kindseg button{font-weight:700}
+.posts.reels{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+.rview{position:relative;aspect-ratio:9/16;background:#000;cursor:pointer;overflow:hidden}
+.rview video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.rview canvas.ovl{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.rplay{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:60px;height:60px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:22px;cursor:pointer;backdrop-filter:blur(4px);z-index:2}
+.rplay.playing{opacity:0;transition:opacity .2s}
+.rview:hover .rplay.playing{opacity:1}
+.rprog{position:absolute;left:10px;bottom:10px;background:rgba(0,0,0,.7);color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;z-index:2}
+.pactions.three{grid-template-columns:1fr 1fr 1fr}
+.pactions.three .btn{font-size:12px}
 .pstatus{display:flex;align-items:center;justify-content:center;gap:6px;padding:12px;color:#5f5f5f;font-size:12px;letter-spacing:.12em;border-top:1px solid var(--line)}
 
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
@@ -276,7 +288,8 @@ textarea.inline{position:absolute;margin:0;padding:0;border:0;border-radius:0;mi
 
 <main id="main">
   <div class="topbar">
-    <h2>최종 결과 미리보기<span class="sub">1080 × 1350 · <span id="count"></span></span></h2>
+    <h2>최종 결과 미리보기<span class="sub"><span id="sizeLabel">1080 × 1350</span> · <span id="count"></span></span></h2>
+    <div class="seg kindseg" id="kindTabs"><button data-k="post">📷 게시물</button><button data-k="reel">🎬 릴스</button></div>
   </div>
   <div class="datebar">
     <button class="navbtn" id="wkPrev" title="이전 주">‹</button>
@@ -294,7 +307,7 @@ textarea.inline{position:absolute;margin:0;padding:0;border:0;border-radius:0;mi
     <div style="font-size:30px;opacity:.6">⧉</div>
     <div class="t">NO ITEMS TO PROCESS</div>
     <div style="font-size:13px" id="emptyDay"></div>
-    <div style="font-size:12px">이미지를 업로드하거나, 끌어다 놓거나, 캡처 후 붙여넣기(Ctrl+V) 하세요</div>
+    <div style="font-size:12px" id="emptyHint"></div>
   </div>
   <div class="posts" id="posts"></div>
   <div id="othersWrap"></div>
@@ -322,6 +335,7 @@ textarea.inline{position:absolute;margin:0;padding:0;border:0;border-radius:0;mi
     <div class="mview" id="mView"><div class="mstage" id="mStage"><canvas id="mCanvas" width="1080" height="1350"></canvas><textarea class="inline" id="mInline" hidden spellcheck="false"></textarea></div></div>
     <div class="mside">
       <h4 id="mTitle"></h4>
+      <div id="mReelWrap" hidden><div class="lbl">커버 장면 <span id="mCoverTOut"></span></div><input type="range" id="mCoverT" min="0" max="1" step="0.1"></div>
       <div class="lbl">사진 확대 (결과물) <span id="mZoomOut"></span></div>
       <input type="range" id="mZoom" min="1" max="2.5" step="0.01">
       <div id="mCoverWrap" hidden>
@@ -376,7 +390,7 @@ textarea.inline{position:absolute;margin:0;padding:0;border:0;border-radius:0;mi
 <div class="toast" id="toast"></div>
 
 <script>
-const W = 1080, H = 1350;
+const W = 1080; let H = 1350;   // H는 그리는 캔버스 높이에 맞춰 잠시 바뀜 (릴스 1920)
 const FONTS = [
   { id: 'Pretendard',        label: 'Pretendard (프리텐다드)', w: 800, g: '한국어' },
   { id: 'Black Han Sans',    label: '검은고딕 (Black Han Sans)', w: 400, g: '한국어' },
@@ -585,6 +599,10 @@ function drawLogo(ctx) {
   ctx.drawImage(logo, x, y, lw, lh);
 }
 function drawSlide(ctx, sl, post, isCover) {
+  const prevH = H; H = ctx.canvas.height;
+  try { drawSlideInner(ctx, sl, post, isCover); } finally { H = prevH; }
+}
+function drawSlideInner(ctx, sl, post, isCover) {
   ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = '#111'; ctx.fillRect(0, 0, W, H);
   if (sl.img) {
@@ -627,6 +645,7 @@ async function renderNow() {
   all.forEach(p => {
     p.slides.forEach((sl, i) => {
       drawSlide(sl.ctx, sl, p, i === 0);
+      if (p.kind === 'reel') { if (p.ovl) drawReelOverlay(p); return; }
       const tc = sl.thumb.getContext('2d');
       tc.clearRect(0, 0, 128, 160); tc.drawImage(sl.canvas, 0, 0, 128, 160);
     });
@@ -721,7 +740,7 @@ function removeSlide(pi, si) {
   rebuild();
 }
 function rebuildSel() {
-  const mine = posts.map((p, i) => [p, i]).filter(([p]) => p.date === curDate && inAcct(p));
+  const mine = posts.map((p, i) => [p, i]).filter(([p]) => vis(p));
   $('posts').querySelectorAll(':scope > .post').forEach((el, k) => el.classList.toggle('sel', mine[k] && mine[k][1] === selIdx));
 }
 function select(pi) {
@@ -732,7 +751,7 @@ function select(pi) {
 function syncSidebar() {
   const p = posts[selIdx];
   $('caption').disabled = !p; $('caption').value = p ? p.caption : '';
-  const b = $('selBadge'); b.textContent = p ? `${dateLabel(p.date)} ${posts.filter(q => q.date === p.date && inAcct(q)).indexOf(p) + 1}번` : '게시물 없음'; b.classList.toggle('sel', !!p);
+  const b = $('selBadge'); b.textContent = p ? `${dateLabel(p.date)} ${posts.filter(q => q.date === p.date && inAcct(q) && (q.kind || 'post') === (p.kind || 'post')).indexOf(p) + 1}번` : '게시물 없음'; b.classList.toggle('sel', !!p);
 }
 
 const DAYS = ['월', '화', '수', '목', '금', '토', '일'];
@@ -748,8 +767,9 @@ const dateLabel = s => { const d = parseYmd(s); return `${d.getMonth() + 1}월 $
 const legacyDate = i => addDays(weekStartOf(todayStr()), i ?? todayIdx());   // 예전(요일만 저장된) 게시물 → 이번 주 날짜
 let curDate = todayStr();
 let calMonth = curDate.slice(0, 7);
-const countOn = date => posts.filter(p => p.date === date && inAcct(p)).length + others.filter(p => p.date === date && inAcct(p)).length;
-function goDate(d) { curDate = d; calMonth = d.slice(0, 7); selIdx = posts.findIndex(p => p.date === d && inAcct(p)); rebuild(); }
+const vis = p => p.date === curDate && inAcct(p) && inKind(p);
+const countOn = date => [...posts, ...others].filter(p => p.date === date && inAcct(p) && inKind(p)).length;
+function goDate(d) { curDate = d; calMonth = d.slice(0, 7); selIdx = posts.findIndex(p => p.date === d && inAcct(p) && inKind(p)); rebuild(); }
 let others = [];   // 다른 사람 게시물 (보기·다운로드 전용)
 let addTarget = -1;
 
@@ -798,6 +818,7 @@ function setHead(el, title, sub) {
 }
 
 function buildCard(p, pi, ro) {
+  if (p.kind === 'reel') return buildReelCard(p, pi, ro);
   const el = document.createElement('div');
   el.className = 'post' + (!ro && pi === selIdx ? ' sel' : '') + (p.done ? ' isdone' : '') + (ro ? ' ro' : '');
   const tools = ro
@@ -888,7 +909,7 @@ function buildCard(p, pi, ro) {
 // 다른 사람 게시물 (아래쪽) — 내 카드는 건드리지 않고 이 부분만 다시 그림
 function renderOthers() {
   const wrap = $('othersWrap'); wrap.innerHTML = '';
-  const theirs = others.filter(p => p.date === curDate && inAcct(p));
+  const theirs = others.filter(p => vis(p));
   const owners = [...new Set(others.map(p => p.owner))].sort((a, b) => (nicks[a] || '').localeCompare(nicks[b] || ''));
   owners.forEach(o => {
     const list = theirs.filter(p => p.owner === o).sort((a, b) => a.order - b.order);
@@ -897,10 +918,10 @@ function renderOthers() {
     setHead(head, nicks[o] || '다른 사람', `${dateLabel(curDate)} · ${list.length}개`);
     sec.appendChild(head);
     if (!list.length) {
-      const e = document.createElement('div'); e.className = 'emptyline'; e.textContent = `${dateLabel(curDate)}에 올린 게시물이 없어요`;
+      const e = document.createElement('div'); e.className = 'emptyline'; e.textContent = `${dateLabel(curDate)}에 올린 ${curKind === 'reel' ? '릴스' : '게시물'}가 없어요`;
       sec.appendChild(e);
     } else {
-      const grid = document.createElement('div'); grid.className = 'posts';
+      const grid = document.createElement('div'); grid.className = 'posts' + (curKind === 'reel' ? ' reels' : '');
       list.forEach(p => grid.appendChild(buildCard(p, -1, true)));
       sec.appendChild(grid);
     }
@@ -911,18 +932,20 @@ function renderOthers() {
 }
 
 function rebuild() {
-  const mine = posts.map((p, pi) => [p, pi]).filter(([p]) => p.date === curDate && inAcct(p));
-  if (!posts[selIdx] || posts[selIdx].date !== curDate || !inAcct(posts[selIdx])) selIdx = mine.length ? mine[0][1] : -1;
+  const mine = posts.map((p, pi) => [p, pi]).filter(([p]) => vis(p));
+  if (!posts[selIdx] || !vis(posts[selIdx])) selIdx = mine.length ? mine[0][1] : -1;
+  const word = curKind === 'reel' ? '릴스' : '게시물';
   setHead($('mineHead'), myLabel(), `${dateLabel(curDate)} · ${mine.length}개`);
   $('empty').hidden = mine.length > 0;
-  $('emptyDay').textContent = `${dateLabel(curDate)}에 만든 게시물이 없어요`;
+  $('emptyDay').textContent = `${dateLabel(curDate)}에 만든 ${word}가 없어요`;
+  $('emptyHint').textContent = curKind === 'reel' ? '동영상을 업로드하거나 끌어다 놓으세요 (MP4 권장, 80MB 이하)' : '이미지를 업로드하거나, 끌어다 놓거나, 캡처 후 붙여넣기(Ctrl+V) 하세요';
   const nSlides = mine.reduce((a, [p]) => a + p.slides.length, 0);
-  $('count').textContent = `${dateLabel(curDate)} 내 게시물 ${mine.length}개 · ${nSlides}장`;
+  $('count').textContent = curKind === 'reel' ? `${dateLabel(curDate)} 내 릴스 ${mine.length}개` : `${dateLabel(curDate)} 내 게시물 ${mine.length}개 · ${nSlides}장`;
   $('btnZip').disabled = !mine.length;
   $('btnZip').textContent = `⬇ ${dateLabel(curDate)} 내 게시물 다운로드 (ZIP)`;
   const nDone = posts.filter(p => p.done).length;
   $('btnClearDone').hidden = !nDone; $('btnClearDone').textContent = `✓ 업로드 완료한 게시물 정리 (${nDone})`;
-  const wrap = $('posts'); wrap.innerHTML = '';
+  const wrap = $('posts'); wrap.innerHTML = ''; wrap.classList.toggle('reels', curKind === 'reel');
   mine.forEach(([p, pi]) => wrap.appendChild(buildCard(p, pi, false)));
   syncSidebar();
   renderOthers();
@@ -1045,6 +1068,7 @@ function paintTextCtl() {
 }
 $('mDown').onclick = () => {
   const sl = curSlide(); if (!sl) return;
+  if (posts[modal.p].kind === 'reel') { downloadCover(posts[modal.p]); return; }
   if (!sl.img) { toast('사진이 없는 장이에요'); return; }
   const p = posts[modal.p], n = p.slides.filter(x => x.img).length;
   sl.canvas.toBlob(b => saveBlob(b, n > 1 ? `${fileBase(p)}_${pad(modal.s + 1)}.jpg` : `${fileBase(p)}.jpg`), 'image/jpeg', 0.95);
@@ -1062,6 +1086,11 @@ $('mView').addEventListener('dragleave', () => { $('mView').style.outline = ''; 
 $('mView').addEventListener('drop', e => { e.preventDefault(); $('mView').style.outline = ''; if (modal.p >= 0) swapImage(modal.p, modal.s, e.dataTransfer.files); });
 function openEditor(pi, si, editWhich) {
   modal.p = pi; modal.s = si; const sl = curSlide(); if (!sl) return;
+  const reel = posts[pi].kind === 'reel';
+  mc.height = reel ? RH : 1350; $('mView').style.aspectRatio = reel ? '9/16' : '4/5';
+  $('mReelWrap').hidden = !reel; $('mDelImg').hidden = reel;
+  $('mDown').textContent = reel ? '커버 다운로드' : '사진 다운로드';
+  if (reel) { const p = posts[pi]; $('mCoverT').max = Math.max(0.1, (p.video && p.video.dur) || 1); $('mCoverT').value = p.coverT || 0; $('mCoverTOut').textContent = (p.coverT || 0).toFixed(1) + '초'; }
   $('mTitle').textContent = `${pi + 1}번 게시물 · ${si + 1}장${si === 0 ? ' (표지)' : ''}`;
   $('mZoom').value = sl.zoom; $('mZoomOut').textContent = Math.round(sl.zoom * 100) + '%';
   $('mCoverWrap').hidden = si !== 0; paintTextCtl();
@@ -1073,7 +1102,7 @@ function closeEditor() { endInline(); modal.p = modal.s = -1; modal.openedFor = 
 
 // ----- 캔버스: 글자 클릭 = 직접 입력, 글자 드래그 = 글자 이동, 그 외 드래그 = 사진 위치
 const mc = $('mCanvas');
-const toCanvas = e => { const r = mc.getBoundingClientRect(); return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height }; };
+const toCanvas = e => { const r = mc.getBoundingClientRect(); return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * mc.height / r.height }; };
 function hitText(pt) {
   const p = posts[modal.p]; if (modal.s !== 0 || !p || !p._lay) return null;
   const L = p._lay, inCol = pt.x > L.colX - 30 && pt.x < L.colX + L.colW + 30;
@@ -1103,7 +1132,7 @@ mc.addEventListener('pointermove', e => {
     st.offY = Math.round(Math.max(-1000, Math.min(1000, (st.offY || 0) + dy)));
   } else {
     if (!sl.img) { render(); return; }
-    const r = imgRect(sl);
+    const prevH = H; H = mc.height; const r = imgRect(sl); H = prevH;
     if (r.maxX > 0) sl.panX = Math.max(-1, Math.min(1, sl.panX - dx / r.maxX));
     if (r.maxY > 0) sl.panY = Math.max(-1, Math.min(1, sl.panY - dy / r.maxY));
   }
@@ -1225,7 +1254,7 @@ async function exportZip(list, filename) {
 }
 $('btnZip').onclick = () => {
   const d = new Date();
-  exportZip(posts.filter(p => p.date === curDate && inAcct(p)), `${acct() ? acct().name : 'cardnews'}_${curDate}.zip`);
+  exportZip(posts.filter(p => vis(p)), `${acct() ? acct().name : 'cardnews'}_${curDate}.zip`);
 };
 
 /* ---------- controls ---------- */
@@ -1284,7 +1313,7 @@ $('lang').onchange = e => {
 };
 
 $('btnUpload').onclick = () => $('fileImgs').click();
-$('fileImgs').onchange = e => { addPosts(e.target.files); e.target.value = ''; };
+$('fileImgs').onchange = e => { (curKind === 'reel' ? addReels : addPosts)(e.target.files); e.target.value = ''; };
 $('fileSwap').onchange = e => { if (swapTarget) swapImage(swapTarget.pi, swapTarget.si, e.target.files); e.target.value = ''; };
 $('fileAdd').onchange = e => { if (addTarget >= 0) addSlides(addTarget, e.target.files); e.target.value = ''; };
 $('btnClearDone').onclick = () => {
@@ -1295,13 +1324,13 @@ $('btnClearDone').onclick = () => {
 const main = $('main');
 main.addEventListener('dragover', e => { e.preventDefault(); main.classList.add('dropping'); });
 main.addEventListener('dragleave', e => { if (!main.contains(e.relatedTarget)) main.classList.remove('dropping'); });
-main.addEventListener('drop', e => { e.preventDefault(); main.classList.remove('dropping'); addPosts(e.dataTransfer.files); });
+main.addEventListener('drop', e => { e.preventDefault(); main.classList.remove('dropping'); (curKind === 'reel' ? addReels : addPosts)(e.dataTransfer.files); });
 document.addEventListener('paste', e => {
   const t = e.target;
   if (t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT')) return;
   const files = [...(e.clipboardData?.items || [])].filter(it => it.kind === 'file').map(it => it.getAsFile()).filter(Boolean)
     .map((f, i) => new File([f], `capture_${Date.now()}_${i}.png`, { type: f.type || 'image/png' }));
-  if (files.length) { e.preventDefault(); addPosts(files); }
+  if (files.length) { e.preventDefault(); (curKind === 'reel' ? addReels : addPosts)(files); }
 });
 
 function paintLogoMode() {
@@ -1448,6 +1477,244 @@ function initAccountsLocal() {
 }
 initAccountsLocal();
 
+/* ---------- 릴스 (동영상) ---------- */
+const RH = 1920;                         // 릴스 커버 1080 × 1920
+const MAX_VIDEO = 80 * 1024 * 1024;      // 영상 1개 최대 80MB
+const CHUNK = 900 * 1024;                // DB 문서 1개에 담는 영상 조각 크기
+const vidCache = new Map();              // 영상 id → 재생용 주소
+let curKind = 'post';
+try { curKind = localStorage.getItem('cnm_kind') === 'reel' ? 'reel' : 'post'; } catch (e) {}
+const inKind = p => (p.kind || 'post') === curKind;
+const isVideoFile = f => (f.type || '').startsWith('video/') || /\.(mp4|mov|m4v|webm)$/i.test(f.name || '');
+function makeOverlay() { const c = document.createElement('canvas'); c.width = W; c.height = RH; c.className = 'ovl'; return c; }
+function makeVideoEl(p) {
+  const v = document.createElement('video');
+  v.muted = true; v.loop = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.preload = 'auto';
+  v.addEventListener('loadedmetadata', () => { if (v.paused) { try { v.currentTime = p.coverT || 0; } catch (e) {} } });
+  return v;
+}
+const waitMeta = v => new Promise((res, rej) => {
+  if (v.readyState >= 1) return res();
+  const t = setTimeout(() => rej(new Error('timeout')), 20000);
+  v.addEventListener('loadedmetadata', () => { clearTimeout(t); res(); }, { once: true });
+  v.addEventListener('error', () => { clearTimeout(t); rej(new Error('video error')); }, { once: true });
+});
+// 영상의 t초 장면을 이미지(캔버스)로 가져오기
+const seekCapture = (v, t) => new Promise((res, rej) => {
+  const grab = () => {
+    try {
+      const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight;
+      c.getContext('2d').drawImage(v, 0, 0); res(c);
+    } catch (e) { rej(e); }
+  };
+  const target = Math.max(0, Math.min(t, (v.duration || t) - 0.05));
+  if (Math.abs(v.currentTime - target) < 0.01 && v.readyState >= 2) return grab();
+  v.addEventListener('seeked', grab, { once: true });
+  v.currentTime = target;
+});
+function makeReelSlide(img) { const sl = makeSlide(img); sl.canvas.height = RH; return sl; }
+
+async function addReels(files) {
+  const vids = [...files].filter(isVideoFile);
+  if (!vids.length) { toast('동영상 파일이 아니에요'); return; }
+  let added = 0;
+  for (const f of vids) {
+    if (f.size > MAX_VIDEO) { toast(`${f.name}: 80MB 이하 영상만 올릴 수 있어요`); continue; }
+    const url = URL.createObjectURL(f);
+    const p = { id: uid(), kind: 'reel', account: acct() ? acct().id : null, date: curDate, day: dayIdxOf(curDate), order: Date.now() + added,
+      done: false, coverText: '', subText: '', caption: '', capImgs: [], st: { ...STYLE_DEFAULT, ...lastStyle, offX: 0, offY: 0 },
+      open: false, active: 0, video: { id: uid(), size: f.size, type: f.type || 'video/mp4', n: 0, dur: 0 }, coverT: 0, _file: f };
+    p.vid = makeVideoEl(p); p.vid.src = url;
+    try {
+      await waitMeta(p.vid);
+      p.video.dur = p.vid.duration || 0;
+      p.coverT = Math.min(1, (p.video.dur || 2) / 2);
+      p.slides = [makeReelSlide(await seekCapture(p.vid, p.coverT))];
+    } catch (e) {
+      console.error(e); URL.revokeObjectURL(url);
+      toast(`${f.name}: 브라우저에서 열 수 없는 영상이에요 (MP4 권장)`); continue;
+    }
+    vidCache.set(p.video.id, url);
+    p.ovl = makeOverlay();
+    posts.push(p); added++;
+  }
+  if (!added) return;
+  selIdx = posts.length - 1;
+  rebuild();
+  toast(`${dateLabel(curDate)}에 릴스 ${added}개 추가됨`);
+}
+
+// 저장된 영상 조각을 모아 재생 가능한 영상으로
+async function loadVideo(p) {
+  if (!p.video || !p.video.n || !db || !user) return null;
+  if (vidCache.has(p.video.id)) return vidCache.get(p.video.id);
+  if (p._loading) return p._loading;
+  p._loading = (async () => {
+    paintReelProg(p, '영상 불러오는 중…');
+    const docs = await Promise.all([...Array(p.video.n).keys()].map(i => col('videoChunks').doc(`${p.video.id}_${i}`).get()));
+    if (docs.some(d => !d.exists)) throw new Error('영상 일부가 아직 올라오지 않았어요');
+    const blob = new Blob(docs.map(d => d.data().data.toUint8Array()), { type: p.video.type || 'video/mp4' });
+    const url = URL.createObjectURL(blob);
+    vidCache.set(p.video.id, url);
+    paintReelProg(p, '');
+    return url;
+  })();
+  try { return await p._loading; }
+  catch (e) { console.error(e); paintReelProg(p, '영상을 불러오지 못했어요'); return null; }
+  finally { p._loading = null; }
+}
+async function ensureVideo(p) {
+  if (!p.vid) p.vid = makeVideoEl(p);
+  if (p.video && p.video.expired) return;
+  if (p.vid.src) return;
+  const url = vidCache.get(p.video && p.video.id) || await loadVideo(p);
+  if (url && !p.vid.src) p.vid.src = url;
+}
+// 날짜가 오늘 기준 7일보다 지난 릴스는 영상만 지움 (용량 관리) — 커버·캡션은 남김
+const VIDEO_KEEP_DAYS = 7;
+function expireOldVideos() {
+  const cutoff = addDays(todayStr(), -VIDEO_KEEP_DAYS);
+  let n = 0;
+  posts.forEach(p => {
+    if (p.kind === 'reel' && p.video && !p.video.expired && p.date < cutoff) {
+      p.video.expired = true; p.video.n = 0; p._file = null;
+      if (p.vid) { p.vid.pause(); p.vid.removeAttribute('src'); p.vid.load(); }
+      n++;
+    }
+  });
+  if (n) toast(`7일 지난 릴스 영상 ${n}개를 정리했어요`);
+}
+async function uploadVideo(p) {
+  const blob = p._file; if (!blob || p.video.expired) return;
+  const buf = new Uint8Array(await blob.arrayBuffer());
+  const n = Math.max(1, Math.ceil(buf.length / CHUNK));
+  let done = 0;
+  const one = async i => {
+    await col('videoChunks').doc(`${p.video.id}_${i}`).set({
+      owner: user.uid, vid: p.video.id, i, n,
+      data: firebase.firestore.Blob.fromUint8Array(buf.slice(i * CHUNK, (i + 1) * CHUNK))
+    });
+    done++; paintReelProg(p, `영상 업로드 중 ${Math.round(done / n * 100)}%`);
+  };
+  for (let i = 0; i < n; i += 3) await Promise.all([...Array(Math.min(3, n - i)).keys()].map(k => one(i + k)));   // 3개씩 동시에
+  p.video.n = n;
+  savedVids.set(p.video.id, n);
+  paintReelProg(p, '');
+}
+function paintReelProg(p, msg) {
+  const el = p.el && p.el.prog; if (!el) return;
+  el.textContent = msg; el.hidden = !msg;
+}
+function drawReelOverlay(p) {
+  const ctx = p.ovl.getContext('2d'), prev = H; H = RH;
+  try {
+    ctx.clearRect(0, 0, W, H);
+    if (p.coverText.trim() || (p.subText || '').trim()) { drawOverlay(ctx, p.st); drawCoverText(ctx, p); }
+    if (hasLogo()) drawLogo(ctx);
+  } finally { H = prev; }
+}
+async function downloadVideo(p) {
+  if (p.video && p.video.expired) { toast('7일이 지나 영상이 삭제됐어요 (커버는 받을 수 있어요)'); return; }
+  let blob = p._file;
+  if (!blob) { const url = vidCache.get(p.video.id) || await loadVideo(p); if (url) blob = await (await fetch(url)).blob(); }
+  if (!blob) { toast('영상을 아직 불러오지 못했어요'); return; }
+  const ext = /quicktime/.test(blob.type) ? 'mov' : /webm/.test(blob.type) ? 'webm' : 'mp4';
+  saveBlob(blob, `${fileBase(p)}.${ext}`); toast('영상 다운로드');
+}
+async function downloadCover(p) {
+  await renderNow();
+  p.slides[0].canvas.toBlob(b => saveBlob(b, `${fileBase(p)}_커버.jpg`), 'image/jpeg', 0.95);
+  toast('커버 다운로드');
+}
+function buildReelCard(p, pi, ro) {
+  const el = document.createElement('div');
+  el.className = 'post reel' + (!ro && pi === selIdx ? ' sel' : '') + (p.done ? ' isdone' : '') + (ro ? ' ro' : '');
+  const tools = ro ? '' : `<button class="${p.done ? 'ok' : ''}" title="업로드 완료 표시">${IC.check}</button><button title="릴스 삭제">${IC.trash}</button>`;
+  el.innerHTML = `
+    <div class="pimg rview"><div class="ptools">${tools}</div><button class="rplay" title="재생">▶</button><div class="rprog" hidden></div></div>
+    <div class="pbar">${IC.heart}${IC.comment}${IC.repost}${IC.send}<span class="sp"></span>${IC.save}</div>
+    <div class="pcap"><b></b><span class="txt"></span><div class="more">더 보기</div></div>
+    <div class="pactions three"><button class="btn" data-a="vid">영상 다운로드</button><button class="btn" data-a="cover">커버 다운로드</button><button class="btn" data-a="cap">캡션 복사</button></div>`;
+  const view = el.querySelector('.rview');
+  if (!p.vid) p.vid = makeVideoEl(p);
+  if (!p.ovl) p.ovl = makeOverlay();
+  view.prepend(p.ovl); view.prepend(p.vid);
+  const play = el.querySelector('.rplay');
+  const paintPlay = () => { play.textContent = p.vid.paused ? '▶' : '❚❚'; play.classList.toggle('playing', !p.vid.paused); };
+  play.onclick = async e => {
+    e.stopPropagation(); await ensureVideo(p);
+    if (p.vid.paused) p.vid.play().catch(() => {}); else p.vid.pause();
+  };
+  p.vid.onplay = p.vid.onpause = paintPlay; paintPlay();
+  const cap = el.querySelector('.pcap');
+  cap.onclick = e => { e.stopPropagation(); cap.classList.toggle('open'); cap.querySelector('.more').textContent = cap.classList.contains('open') ? '접기' : '더 보기'; };
+  p.el = { name: cap.querySelector('b'), txt: cap.querySelector('.txt'), prog: el.querySelector('.rprog') };
+  el.querySelector('[data-a="vid"]').onclick = e => { e.stopPropagation(); downloadVideo(p); };
+  el.querySelector('[data-a="cover"]').onclick = e => { e.stopPropagation(); downloadCover(p); };
+  el.querySelector('[data-a="cap"]').onclick = e => { e.stopPropagation(); copyCaption(p); };
+  ensureVideo(p);
+  if (p.video && p.video.expired) {
+    play.hidden = true; paintReelProg(p, '7일이 지나 영상은 삭제됨');
+    p.vid.remove(); p.ovl.remove();   // 커버 이미지(글자·로고 포함)만 보여줌
+    const img = p.slides[0].canvas; img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%'; view.prepend(img);
+  } else if (p._file && !savedVids.has(p.video.id) && user) paintReelProg(p, '업로드 대기 중…');
+  if (ro) return el;
+  const [bDone, bDel] = el.querySelectorAll('.ptools button');
+  bDone.onclick = e => { e.stopPropagation(); p.done = !p.done; rebuild(); };
+  bDel.onclick = e => { e.stopPropagation(); if (confirm('이 릴스를 삭제할까요?')) { p.vid.pause(); removePost(pi); } };
+  const daySel = document.createElement('input'); daySel.type = 'date'; daySel.className = 'daysel'; daySel.title = '날짜 옮기기';
+  daySel.value = p.date; daySel.onclick = e => e.stopPropagation();
+  daySel.onchange = () => { if (!daySel.value) return; p.date = daySel.value; p.day = dayIdxOf(p.date); toast(`${dateLabel(p.date)}로 옮겼어요`); rebuild(); };
+  view.appendChild(daySel);
+  view.onclick = e => {
+    select(pi);
+    let which = null;
+    if (p._lay) {
+      const r = view.getBoundingClientRect(), x = (e.clientX - r.left) * W / r.width, y = (e.clientY - r.top) * RH / r.height, L = p._lay;
+      if (x > L.colX - 30 && x < L.colX + L.colW + 30) {
+        if (p.coverText.trim() && y > L.title.top - 20 && y < L.title.top + L.title.h + 12) which = 'title';
+        else if ((p.subText || '').trim() && y > L.sub.top - 12 && y < L.sub.top + L.sub.h + 20) which = 'sub';
+      }
+    }
+    openEditor(pi, 0, which);
+  };
+  el.addEventListener('click', () => select(pi));
+  return el;
+}
+// 게시물 / 릴스 탭
+function paintKind() {
+  const reel = curKind === 'reel';
+  [...$('kindTabs').children].forEach(b => b.classList.toggle('on', b.dataset.k === curKind));
+  $('btnUpload').textContent = reel ? '🎬 동영상 업로드' : '🖼️ 이미지 업로드';
+  $('fileImgs').accept = reel ? 'video/*,.mp4,.mov,.m4v,.webm' : 'image/*,.png,.PNG,.jpg,.jpeg,.webp,.gif,.bmp,.heic';
+  $('sizeLabel').textContent = reel ? '1080 × 1920' : '1080 × 1350';
+  $('btnZip').hidden = reel;
+}
+$('kindTabs').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.dataset.k === curKind) return;
+  curKind = b.dataset.k; try { localStorage.setItem('cnm_kind', curKind); } catch (err) {}
+  [...posts, ...others].forEach(p => { if (p.vid && !p.vid.paused) p.vid.pause(); });
+  selIdx = -1; paintKind(); rebuild();
+});
+// 편집 화면: 커버 장면 고르기
+let coverTimer = 0;
+$('mCoverT').addEventListener('input', () => {
+  const p = posts[modal.p]; if (!p || p.kind !== 'reel') return;
+  const t = +$('mCoverT').value; $('mCoverTOut').textContent = t.toFixed(1) + '초';
+  clearTimeout(coverTimer);
+  coverTimer = setTimeout(async () => {
+    await ensureVideo(p);
+    try {
+      await waitMeta(p.vid); p.vid.pause();
+      const frame = await seekCapture(p.vid, t);
+      const sl = p.slides[0];
+      sl.id = uid();   // 새 커버 이미지로 저장되도록
+      sl.orig = sl.img = frame; sl.clean = sl.regen = null; sl.use = 'orig';
+      p.coverT = t; render();
+    } catch (e) { toast('이 장면을 가져오지 못했어요'); }
+  }, 150);
+});
+
 /* ---------- 클라우드 저장 · 2인 공용 작업공간 (Firebase) ---------- */
 // ▼ Firebase 콘솔 → 프로젝트 설정 → 내 앱(웹)의 firebaseConfig 값을 여기에 붙여넣으세요
 const FIREBASE_CONFIG = {
@@ -1461,6 +1728,7 @@ const FIREBASE_CONFIG = {
 let db = null, user = null, saving = false, dirtyAgain = false, saveTimer = 0, loadingCloud = false;
 const savedPosts = new Map();      // 내 게시물 id → 마지막으로 저장한 내용(JSON)
 const savedImgs = new Set();       // 내가 저장한 이미지 문서 id
+const savedVids = new Map();       // 내가 저장한 영상 id → 조각 수
 let savedSettings = '', savedLogo;
 const nicks = {};                  // uid → 닉네임
 const imgCache = new Map();        // 이미지 문서 id → 이미지
@@ -1494,7 +1762,8 @@ function compressImg(img, { max = 2000, png = false } = {}) {
 }
 function postMeta(p) {
   return {
-    owner: user ? user.uid : '', account: acctOf(p) || null, date: p.date, day: dayIdxOf(p.date), order: p.order, coverText: p.coverText, subText: p.subText || '', caption: p.caption,
+    owner: user ? user.uid : '', kind: p.kind || 'post', video: p.video || null, coverT: p.coverT || 0,
+    account: acctOf(p) || null, date: p.date, day: dayIdxOf(p.date), order: p.order, coverText: p.coverText, subText: p.subText || '', caption: p.caption,
     st: p.st, active: p.active, source: p.source || '', done: !!p.done,
     slides: p.slides.map(sl => ({ id: sl.id, use: sl.use, panX: sl.panX, panY: sl.panY, zoom: sl.zoom,
       has: ['orig', 'clean', 'regen'].filter(v => sl[v]), cleanManual: !!sl.cleanManual })),
@@ -1524,6 +1793,12 @@ async function saveAll() {
       }
     }
     if (uploads.length) { changed = true; setSync('saving'); await Promise.all(uploads); }
+    // 1-2) 릴스 영상 (조각으로 나눠 업로드)
+    const wantV = new Set();
+    for (const p of posts) if (p.kind === 'reel' && p.video && !p.video.expired) {
+      wantV.add(p.video.id);
+      if (!savedVids.has(p.video.id)) { changed = true; setSync('saving'); await uploadVideo(p); }
+    }
     // 2) 게시물 내용
     const ids = new Set(posts.map(p => p.id));
     for (const p of posts) {
@@ -1533,6 +1808,11 @@ async function saveAll() {
     // 3) 삭제된 게시물·이미지 정리
     for (const id of [...savedPosts.keys()]) if (!ids.has(id)) { changed = true; await col('posts').doc(id).delete(); savedPosts.delete(id); }
     for (const id of [...savedImgs]) if (!want.has(id)) { changed = true; await col('images').doc(id).delete(); savedImgs.delete(id); }
+    for (const [id, n] of [...savedVids]) if (!wantV.has(id)) {
+      changed = true;
+      await Promise.all([...Array(n).keys()].map(i => col('videoChunks').doc(`${id}_${i}`).delete()));
+      savedVids.delete(id);
+    }
     // 4) 개인 설정 · 로고
     const sm = JSON.stringify(cloudSettings());
     if (sm !== savedSettings) { changed = true; await userCol('meta').doc('settings').set(JSON.parse(sm)); savedSettings = sm; }
@@ -1565,9 +1845,12 @@ async function postFromMeta(m, mine) {
     return sl;
   }).filter(Boolean);
   if (!slides.length) return null;
+  if (m.kind === 'reel') slides.forEach(sl => { sl.canvas.height = RH; });
+  if (mine && m.kind === 'reel' && m.video && m.video.n) savedVids.set(m.video.id, m.video.n);
   const caps = (m.caps || []).map(c => { const im = map['cap_' + c]; if (im) imgIdMap.set(im, c); return im; }).filter(Boolean);
   const date = m.date || legacyDate(m.day);
-  return { id: m.id, owner: m.owner, account: m.account || null, date, day: dayIdxOf(date), order: m.order || 0, coverText: m.coverText || '', subText: m.subText || '', caption: m.caption || '',
+  return { id: m.id, owner: m.owner, kind: m.kind || 'post', video: m.video || null, coverT: m.coverT || 0, ovl: m.kind === 'reel' ? makeOverlay() : null,
+    account: m.account || null, date, day: dayIdxOf(date), order: m.order || 0, coverText: m.coverText || '', subText: m.subText || '', caption: m.caption || '',
     capImgs: caps, st: { ...STYLE_DEFAULT, ...(m.st || {}) }, open: false, slides,
     active: Math.min(m.active || 0, slides.length - 1), source: m.source || '', done: !!m.done };
 }
@@ -1607,6 +1890,7 @@ async function loadCloud() {
       savedPosts.set(p.id, JSON.stringify(postMeta(p)));
     }
     posts.sort((a, b) => a.order - b.order);
+    expireOldVideos();
     setSync('saved');
   } catch (e) { console.error(e); setSync('error', e.message); toast('불러오기 실패: ' + e.message); }
   finally { loadingCloud = false; rebuild(); scheduleSave(); }
@@ -1649,7 +1933,11 @@ async function upsertOther(m) {
     const p = await postFromMeta(m, false);
     const old = others.find(o => o.id === m.id);
     others = others.filter(o => o.id !== m.id);
-    if (p) { if (old) p.active = Math.min(old.active, p.slides.length - 1); others.push(p); }
+    if (p) {
+      if (old) p.active = Math.min(old.active, p.slides.length - 1);
+      if (old && old.vid && old.video && p.video && old.video.id === p.video.id) p.vid = old.vid;   // 영상 다시 받지 않게
+      others.push(p);
+    }
     scheduleOthers();
   } catch (e) { console.error(e); }
 }
@@ -1732,7 +2020,7 @@ if (typeof firebase !== 'undefined' && FIREBASE_CONFIG.apiKey) {
     else {
       if (unsubPosts) unsubPosts(); if (unsubProfiles) unsubProfiles(); unsubPosts = unsubProfiles = null;
       if (unsubAccts) unsubAccts(); unsubAccts = null;
-      savedPosts.clear(); savedImgs.clear(); savedSettings = '';
+      savedPosts.clear(); savedImgs.clear(); savedVids.clear(); savedSettings = '';
       initAccountsLocal();
       Object.keys(nicks).forEach(k => delete nicks[k]); others = [];
       if (prev) { posts = []; selIdx = -1; rebuild(); }
@@ -1744,6 +2032,7 @@ if (typeof firebase !== 'undefined' && FIREBASE_CONFIG.apiKey) {
 }
 
 paintLogoMode();
+paintKind();
 rebuild();
 </script>
 </body>
