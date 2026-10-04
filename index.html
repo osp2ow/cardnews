@@ -287,39 +287,41 @@ textarea.inline{position:absolute;margin:0;padding:0;border:0;border-radius:0;mi
     <div class="mview" id="mView"><div class="mstage" id="mStage"><canvas id="mCanvas" width="1080" height="1350"></canvas><textarea class="inline" id="mInline" hidden spellcheck="false"></textarea></div></div>
     <div class="mside">
       <h4 id="mTitle"></h4>
-      <div class="lbl">화면 확대 (보기용)</div>
-      <div class="sizectl"><button id="vzDn">−</button><input id="vzIn" readonly><button id="vzUp">+</button></div>
       <div class="lbl">사진 확대 (결과물) <span id="mZoomOut"></span></div>
       <input type="range" id="mZoom" min="1" max="2.5" step="0.01">
       <div id="mCoverWrap" hidden>
-        <button class="btn" id="mTextToggle" style="margin-top:14px">Aa 글자 편집 <span id="mTextArrow">▾</span></button>
-        <div id="mTextBody" class="textbody" hidden>
         <div class="lbl">표지 문구 <span>*별표* = 강조색</span></div>
-        <textarea id="mCover" style="min-height:80px" placeholder="결혼 전에 꼭&#10;*이것*만은 확인하세요"></textarea>
-        <div class="lbl">부제목</div>
-        <textarea id="mSub" style="min-height:52px" placeholder='"이스라엘판 9·11 될 뻔"'></textarea>
+        <textarea id="mCover" style="min-height:80px" placeholder="텍스트를 입력하세요"></textarea>
+        <button class="btn" id="mTextToggle" style="margin-top:10px">Aa 글자 편집 <span id="mTextArrow">▾</span></button>
+        <div id="mTextBody" class="textbody" hidden>
+        <div class="lbl">수정할 글자</div>
+        <div class="seg" id="mTarget" style="grid-template-columns:1fr 1fr"><button data-t="title">표지 문구</button><button data-t="sub">부제목</button></div>
+        <div id="mSubWrap" hidden>
+          <div class="lbl">부제목</div>
+          <textarea id="mSub" style="min-height:52px" placeholder="텍스트를 입력하세요"></textarea>
+        </div>
         <div class="lbl">폰트</div>
         <select id="mFont"></select>
         <div class="two">
-          <div><div class="lbl">크기 (px)</div><div class="sizectl stp" data-k="fontSize" data-step="1" data-min="12" data-max="400"><button>−</button><input type="number"><button>+</button></div></div>
-          <div><div class="lbl">자간</div><div class="sizectl stp" data-k="tracking" data-step="1" data-min="-20" data-max="40"><button>−</button><input type="number"><button>+</button></div></div>
-          <div><div class="lbl">줄 간격</div><div class="sizectl stp" data-k="lineH" data-step="0.02" data-min="0.8" data-max="2.5" data-dec="2"><button>−</button><input type="number" step="0.01"><button>+</button></div></div>
-          <div><div class="lbl">글상자 너비 (%)</div><div class="sizectl stp" data-k="boxW" data-step="1" data-min="30" data-max="100"><button>−</button><input type="number"><button>+</button></div></div>
+          <div><div class="lbl">크기 (px)</div><div class="sizectl stp" data-t="size" data-step="1" data-min="12" data-max="400"><button>−</button><input type="number"><button>+</button></div></div>
+          <div><div class="lbl">자간</div><div class="sizectl stp" data-t="tracking" data-step="1" data-min="-20" data-max="40"><button>−</button><input type="number"><button>+</button></div></div>
+          <div><div class="lbl">줄 간격</div><div class="sizectl stp" data-t="lineH" data-step="0.02" data-min="0.8" data-max="2.5" data-dec="2"><button>−</button><input type="number" step="0.01"><button>+</button></div></div>
+          <div></div>
+          <div><div class="lbl">글자색</div><input type="color" id="mColor"></div>
+          <div><div class="lbl">강조색</div><input type="color" id="mAccent"></div>
         </div>
+        <div class="lbl" style="margin-top:18px;padding-top:12px;border-top:1px solid var(--line)">공통</div>
         <div class="two">
-          <div><div class="lbl">부제목 크기 (px)</div><div class="sizectl stp" data-k="subSize" data-step="1" data-min="12" data-max="200"><button>−</button><input type="number"><button>+</button></div></div>
+          <div><div class="lbl">글상자 너비 (%)</div><div class="sizectl stp" data-k="boxW" data-step="1" data-min="30" data-max="100"><button>−</button><input type="number"><button>+</button></div></div>
           <div><div class="lbl">제목↔부제목 간격</div><div class="sizectl stp" data-k="subGap" data-step="2" data-min="0" data-max="200"><button>−</button><input type="number"><button>+</button></div></div>
-          <div><div class="lbl">부제목 색</div><input type="color" id="mSubColor"></div>
-          <div><div class="lbl">&nbsp;</div><label class="check" style="margin-top:8px"><input type="checkbox" id="mDivider"> 아래 구분선</label></div>
         </div>
         <div class="lbl">정렬</div>
         <div class="seg" id="mAlign"><button data-val="left">왼쪽</button><button data-val="center">가운데</button><button data-val="right">오른쪽</button></div>
         <div class="two">
-          <div><div class="lbl">글자색</div><input type="color" id="mColor"></div>
-          <div><div class="lbl">강조색</div><input type="color" id="mAccent"></div>
           <div><div class="lbl">배경 어둡게 (%)</div><div class="sizectl stp" data-k="overlay" data-step="0.05" data-min="0" data-max="0.95" data-scale="100"><button>−</button><input type="number"><button>+</button></div></div>
           <div><div class="lbl">&nbsp;</div><label class="check" style="margin-top:8px"><input type="checkbox" id="mShadow"> 글자 그림자</label></div>
         </div>
+        <label class="check"><input type="checkbox" id="mDivider"> 부제목 아래 구분선</label>
         <button class="btn" id="mApplyAll" style="margin-top:12px;height:38px;font-size:13px">이 스타일을 모든 게시물에 적용</button>
         </div>
       </div>
@@ -364,7 +366,8 @@ const STYLE_DEFAULT = {
   font: 'Pretendard', fontSize: 96, tracking: -3, textPos: 'bottom', align: 'center',
   textColor: '#ffffff', accent: '#ffd84a', overlay: 0.7, shadow: true,
   offX: 0, offY: 0, lineH: 1.28, boxW: 84,
-  subSize: 44, subColor: '#e6e6e6', subGap: 30, divider: false
+  subSize: 44, subColor: '#e6e6e6', subGap: 30, divider: false,
+  subFont: null, subTracking: null, subLineH: 1.25, subAccent: null
 };
 // 새 게시물은 마지막으로 편집한 스타일을 이어받음
 let lastStyle = { ...STYLE_DEFAULT };
@@ -461,25 +464,27 @@ function wrapLines(ctx, paras, maxW) {
 function drawCoverText(ctx, post) {
   const st = { ...STYLE_DEFAULT, ...post.st }, f = fontOf(st.font), size = st.fontSize, subSize = st.subSize;
   const boxW = W * st.boxW / 100, PAD = (W - boxW) / 2;
-  const subW = st.font === 'Pretendard' ? 500 : f.w;   // 부제목은 한 단계 가볍게 (가능한 폰트만)
-  const titleFont = `${f.w} ${size}px "${f.id}"`, subFont = `${subW} ${subSize}px "${f.id}"`;
+  const fs = fontOf(st.subFont || st.font);
+  const subW = fs.id === 'Pretendard' ? 500 : fs.w;   // 부제목은 한 단계 가볍게 (가능한 폰트만)
+  const subTrack = st.subTracking ?? st.tracking, subAccent = st.subAccent || st.accent;
+  const titleFont = `${f.w} ${size}px "${f.id}"`, subFont = `${subW} ${subSize}px "${fs.id}"`;
   const hasTitle = !!post.coverText.trim(), hasSub = !!(post.subText || '').trim();
   ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
-  const spacing = sz => { if ('letterSpacing' in ctx) ctx.letterSpacing = (st.tracking * sz / 100) + 'px'; };
+  const spacing = (sz, tr = st.tracking) => { if ('letterSpacing' in ctx) ctx.letterSpacing = (tr * sz / 100) + 'px'; };
   // 줄 나누기
   ctx.font = titleFont; spacing(size);
   const tLines = hasTitle ? wrapLines(ctx, parseText(post.coverText), boxW) : [];
-  ctx.font = subFont; spacing(subSize);
+  ctx.font = subFont; spacing(subSize, subTrack);
   const sLines = hasSub ? wrapLines(ctx, parseText(post.subText), boxW) : [];
-  const tlh = size * st.lineH, slh = subSize * Math.max(1.2, st.lineH);
+  const tlh = size * st.lineH, slh = subSize * (st.subLineH || 1.25);
   const tH = tLines.length * tlh, sH = sLines.length * slh;
   const gap = hasTitle && hasSub ? st.subGap : 0;
   const divGap = st.divider ? 34 : 0;
   const blockH = tH + gap + sH + divGap;
   const y0 = (st.textPos === 'top' ? 190 : st.textPos === 'center' ? (H - blockH) / 2 : H - 170 - blockH) + st.offY;
   let minX = W, maxX = 0;
-  const drawLines = (lines, font, sz, lh, top, color) => {
-    ctx.font = font; spacing(sz);
+  const drawLines = (lines, font, sz, lh, top, color, accent = st.accent, tr = st.tracking) => {
+    ctx.font = font; spacing(sz, tr);
     lines.forEach((line, i) => {
       const runs = [];
       for (const ch of line) {
@@ -491,13 +496,13 @@ function drawCoverText(ctx, post) {
       let x = (st.align === 'left' ? PAD : st.align === 'right' ? W - PAD - total : (W - total) / 2) + st.offX;
       if (total) { minX = Math.min(minX, x); maxX = Math.max(maxX, x + total); }
       const y = top + i * lh + sz * 0.92;
-      runs.forEach((r, k) => { ctx.fillStyle = r.e ? st.accent : color; ctx.fillText(r.t, x, y); x += widths[k]; });
+      runs.forEach((r, k) => { ctx.fillStyle = r.e ? accent : color; ctx.fillText(r.t, x, y); x += widths[k]; });
     });
   };
   if (st.shadow) { ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = size * 0.25; ctx.shadowOffsetY = size * 0.04; }
   if (post._hide !== 'title') drawLines(tLines, titleFont, size, tlh, y0, st.textColor);
   if (st.shadow) { ctx.shadowBlur = subSize * 0.3; ctx.shadowOffsetY = subSize * 0.04; }
-  if (post._hide !== 'sub') drawLines(sLines, subFont, subSize, slh, y0 + tH + gap, st.subColor);
+  if (post._hide !== 'sub') drawLines(sLines, subFont, subSize, slh, y0 + tH + gap, st.subColor, subAccent, subTrack);
   ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
   if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
   if (st.divider) {   // 부제목 아래 가는 구분선
@@ -508,8 +513,8 @@ function drawCoverText(ctx, post) {
   post._tb = maxX > minX ? { x: minX, y: y0, w: maxX - minX, h: blockH } : null;
   // 편집 화면에서 클릭·직접 입력에 쓰는 배치 정보
   post._lay = { colX: PAD + st.offX, colW: boxW, align: st.align, tracking: st.tracking,
-    title: { top: y0, h: Math.max(tH, tlh), lh: tlh, size, font: f.id, w: f.w, color: st.textColor },
-    sub: { top: y0 + tH + (hasTitle ? st.subGap : 0), h: Math.max(sH, slh), lh: slh, size: subSize, font: f.id, w: subW, color: st.subColor, has: hasSub } };
+    title: { top: y0, h: Math.max(tH, tlh), lh: tlh, size, font: f.id, w: f.w, color: st.textColor, tr: st.tracking },
+    sub: { top: y0 + tH + (hasTitle ? st.subGap : 0), h: Math.max(sH, slh), lh: slh, size: subSize, font: fs.id, w: subW, color: st.subColor, tr: subTrack, has: hasSub } };
 }
 function drawOverlay(ctx, st) {
   const a = st.overlay; if (a <= 0) return;
@@ -552,8 +557,8 @@ function render() { cancelAnimationFrame(raf); raf = requestAnimationFrame(rende
 async function renderNow() {
   const all = [...posts, ...others];
   await Promise.all(all.filter(p => p.coverText.trim() || (p.subText || '').trim()).map(p => {
-    const f = fontOf(p.st.font), txt = (p.coverText + (p.subText || '')).replace(/\s/g, '');
-    return Promise.all([document.fonts.load(`${f.w} 80px "${f.id}"`, txt), document.fonts.load(`500 40px "${f.id}"`, txt)]).catch(() => {});
+    const f = fontOf(p.st.font), fs = fontOf(p.st.subFont || p.st.font), txt = (p.coverText + (p.subText || '')).replace(/\s/g, '');
+    return Promise.all([document.fonts.load(`${f.w} 80px "${f.id}"`, txt), document.fonts.load(`${fs.id === 'Pretendard' ? 500 : fs.w} 40px "${fs.id}"`, txt)]).catch(() => {});
   }));
   const name = S.account.trim() || 'your.account';
   all.forEach(p => {
@@ -867,31 +872,46 @@ document.addEventListener('keydown', e => {
   if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
   e.preventDefault(); undo();
 });
-// 편집 화면의 표지 문구 스타일 조절 (− / + / 직접 입력)
+// 편집 화면의 글자 스타일 조절 (− / + / 직접 입력)
+// '표지 문구' / '부제목' 중 선택한 쪽에만 적용되는 항목은 data-t, 공통 항목은 data-k
 const mStyle = () => posts[modal.p].st;
+let textTarget = 'title';
+const TKEY = {   // [표지 문구 키, 부제목 키, 부제목 값이 없을 때 따라갈 키]
+  size: ['fontSize', 'subSize'], tracking: ['tracking', 'subTracking', 'tracking'], lineH: ['lineH', 'subLineH'],
+  font: ['font', 'subFont', 'font'], color: ['textColor', 'subColor'], accent: ['accent', 'subAccent', 'accent'],
+};
+const tKey = t => TKEY[t][textTarget === 'title' ? 0 : 1];
+function styleVal(key) {
+  const st = { ...STYLE_DEFAULT, ...mStyle() };
+  if (st[key] != null) return st[key];
+  const row = Object.values(TKEY).find(r => r[1] === key);
+  return row && row[2] ? st[row[2]] : STYLE_DEFAULT[key];
+}
 function setStyle(k, v) { const st = mStyle(); st[k] = v; saveStyle(st); render(); }
 document.querySelectorAll('#mCoverWrap .stp').forEach(el => {
-  const k = el.dataset.k, step = +el.dataset.step, min = +el.dataset.min, max = +el.dataset.max;
+  const keyOf = () => el.dataset.t ? tKey(el.dataset.t) : el.dataset.k;
+  const step = +el.dataset.step, min = +el.dataset.min, max = +el.dataset.max;
   const scale = +(el.dataset.scale || 1), dec = +(el.dataset.dec || 0);
   const [dn, inp, up] = el.children;
   const show = v => { inp.value = (v * scale).toFixed(dec); };
-  const set = v => { v = Math.max(min, Math.min(max, Math.round(v / step) * step)); v = +v.toFixed(4); setStyle(k, v); show(v); };
-  el._show = () => show(mStyle()[k] ?? STYLE_DEFAULT[k]);
+  const set = v => { v = Math.max(min, Math.min(max, Math.round(v / step) * step)); v = +v.toFixed(4); setStyle(keyOf(), v); show(v); };
+  el._show = () => show(styleVal(keyOf()));
   inp.addEventListener('change', () => { snap(); set(+inp.value / scale); });
   inp.addEventListener('keydown', e => { if (e.key === 'Enter') { snap(); set(+inp.value / scale); } });
   [[dn, -1], [up, 1]].forEach(([b, d]) => {
     let hold = 0;
-    const tick = () => set((mStyle()[k] ?? STYLE_DEFAULT[k]) + d * step);
+    const tick = () => set(styleVal(keyOf()) + d * step);
     b.addEventListener('pointerdown', () => { snap(); tick(); clearTimeout(hold); hold = setTimeout(() => { hold = setInterval(tick, 70); }, 400); });
     ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, () => { clearTimeout(hold); clearInterval(hold); }));
   });
 });
-$('mFont').addEventListener('change', () => { snap(); setStyle('font', $('mFont').value); });
+function setTarget(t) { textTarget = t; paintTextCtl(); }
+$('mTarget').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; setTarget(b.dataset.t); if (b.dataset.t === 'sub') setTimeout(() => $('mSub').focus(), 0); });
+$('mFont').addEventListener('change', () => { snap(); setStyle(tKey('font'), $('mFont').value); });
+$('mColor').addEventListener('input', () => { snapOnce(); setStyle(tKey('color'), $('mColor').value); });
+$('mAccent').addEventListener('input', () => { snapOnce(); setStyle(tKey('accent'), $('mAccent').value); });
 $('mAlign').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; snap(); setStyle('align', b.dataset.val); paintTextCtl(); });
-$('mColor').addEventListener('input', () => { snapOnce(); setStyle('textColor', $('mColor').value); });
-$('mAccent').addEventListener('input', () => { snapOnce(); setStyle('accent', $('mAccent').value); });
 $('mShadow').addEventListener('change', () => { snap(); setStyle('shadow', $('mShadow').checked); });
-$('mSubColor').addEventListener('input', () => { snapOnce(); setStyle('subColor', $('mSubColor').value); });
 $('mDivider').addEventListener('change', () => { snap(); setStyle('divider', $('mDivider').checked); });
 $('mSub').addEventListener('input', e => { snapOnce(); posts[modal.p].subText = e.target.value; render(); });
 // 글자 편집 항목은 버튼을 눌렀을 때만 펼침
@@ -903,7 +923,7 @@ function setTextOpen(open) {
 $('mTextToggle').onclick = () => {
   const open = $('mTextBody').hidden;
   setTextOpen(open);
-  if (open) $('mTextBody').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (open && $('mTextBody').scrollIntoView) $('mTextBody').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 };
 $('mApplyAll').onclick = () => {
   const src = mStyle();
@@ -915,10 +935,13 @@ function paintTextCtl() {
   const st = { ...STYLE_DEFAULT, ...mStyle() };
   if (!$('mFont').options.length) $('mFont').innerHTML = FONT_OPTIONS;
   $('mCover').value = posts[modal.p].coverText;
-  $('mFont').value = st.font;
+  $('mSub').value = posts[modal.p].subText || '';
+  [...$('mTarget').children].forEach(b => b.classList.toggle('on', b.dataset.t === textTarget));
+  $('mSubWrap').hidden = textTarget !== 'sub';
+  $('mFont').value = styleVal(tKey('font'));
+  $('mColor').value = styleVal(tKey('color')); $('mAccent').value = styleVal(tKey('accent'));
   [...$('mAlign').children].forEach(b => b.classList.toggle('on', b.dataset.val === st.align));
-  $('mColor').value = st.textColor; $('mAccent').value = st.accent; $('mShadow').checked = !!st.shadow;
-  $('mSub').value = posts[modal.p].subText || ''; $('mSubColor').value = st.subColor; $('mDivider').checked = !!st.divider;
+  $('mShadow').checked = !!st.shadow; $('mDivider').checked = !!st.divider;
   document.querySelectorAll('#mCoverWrap .stp').forEach(el => el._show());
 }
 $('mDown').onclick = () => {
@@ -942,32 +965,11 @@ function openEditor(pi, si, editWhich) {
   $('mTitle').textContent = `${pi + 1}번 게시물 · ${si + 1}장${si === 0 ? ' (표지)' : ''}`;
   $('mZoom').value = sl.zoom; $('mZoomOut').textContent = Math.round(sl.zoom * 100) + '%';
   $('mCoverWrap').hidden = si !== 0; paintTextCtl();
-  if (modal.openedFor !== posts[pi].id) { undoStack = []; $('mUndo').disabled = true; modal.openedFor = posts[pi].id; setVZ(1); setTextOpen(false); }
+  if (modal.openedFor !== posts[pi].id) { undoStack = []; $('mUndo').disabled = true; modal.openedFor = posts[pi].id; setTextOpen(false); textTarget = 'title'; }
   $('modal').classList.add('open'); render();
   if (editWhich) setTimeout(() => startInline(editWhich), 60);
 }
 function closeEditor() { endInline(); modal.p = modal.s = -1; modal.openedFor = null; undoStack = []; $('modal').classList.remove('open'); rebuild(); }
-
-// ----- 화면 확대 (보기용, 결과물에는 영향 없음)
-let vz = 1;
-function setVZ(v, cx, cy) {
-  const view = $('mView'), old = vz;
-  vz = Math.max(1, Math.min(4, Math.round(v * 4) / 4));
-  const fx = cx ?? view.clientWidth / 2, fy = cy ?? view.clientHeight / 2;
-  const px = (view.scrollLeft + fx) / old, py = (view.scrollTop + fy) / old;
-  $('mStage').style.setProperty('--vz', vz);
-  $('vzIn').value = Math.round(vz * 100) + '%';
-  view.scrollLeft = px * vz - fx; view.scrollTop = py * vz - fy;
-  if (inlineWhich) placeInline();
-}
-$('vzDn').onclick = () => setVZ(vz - 0.25);
-$('vzUp').onclick = () => setVZ(vz + 0.25);
-$('mView').addEventListener('wheel', e => {   // Ctrl(⌘)+휠 = 화면 확대, 그냥 휠 = 스크롤
-  if (!(e.ctrlKey || e.metaKey)) return;
-  e.preventDefault();
-  const r = $('mView').getBoundingClientRect();
-  setVZ(vz * (e.deltaY < 0 ? 1.15 : 1 / 1.15), e.clientX - r.left, e.clientY - r.top);
-}, { passive: false });
 
 // ----- 캔버스: 글자 클릭 = 직접 입력, 글자 드래그 = 글자 이동, 그 외 드래그 = 사진 위치
 const mc = $('mCanvas');
@@ -1024,7 +1026,7 @@ function placeInline() {
   inl.style.width = (L.colW * k) + 'px';
   inl.style.font = `${b.w} ${b.size * k}px "${b.font}"`;
   inl.style.lineHeight = (b.lh * k) + 'px';
-  inl.style.letterSpacing = (L.tracking * b.size / 100 * k) + 'px';
+  inl.style.letterSpacing = (b.tr * b.size / 100 * k) + 'px';
   inl.style.color = b.color;
   inl.style.textAlign = L.align;
   inl.style.height = 'auto';
@@ -1035,6 +1037,7 @@ function startInline(which) {
   if (!p._lay) render();
   snap();
   inlineWhich = which; p._hide = which;
+  if (textTarget !== which) setTarget(which);
   inl.value = which === 'title' ? p.coverText : (p.subText || '');
   inl.hidden = false; render();
   requestAnimationFrame(() => { placeInline(); inl.focus(); inl.setSelectionRange(inl.value.length, inl.value.length); });
