@@ -9,6 +9,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Do+Hyeon&family=Gothic+A1:wght@800&family=Noto+Sans+KR:wght@900&family=Noto+Serif+KR:wght@900&family=Nanum+Myeongjo:wght@800&family=Gowun+Batang:wght@700&family=Noto+Sans+JP:wght@900&family=Dela+Gothic+One&family=Zen+Maru+Gothic:wght@700&family=Zen+Old+Mincho:wght@900&family=Inter:wght@800&family=Playfair+Display:wght@800&family=Anton&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
 :root{--bg:#000;--panel:#0b0b0b;--card:#121212;--line:#242424;--line2:#363636;--text:#ececec;--muted:#8a8a8a;--danger:#ff5d5d}
 *{box-sizing:border-box}
@@ -51,7 +54,7 @@ input[type=color]{width:100%;height:40px;border:1px solid var(--line2);border-ra
 .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;gap:12px;flex-wrap:wrap}
 .topbar h2{font-size:15px;margin:0;font-weight:700}
 .topbar .sub{font-size:12px;color:var(--muted);margin-left:8px;font-weight:500}
-.empty{border:1px dashed var(--line2);border-radius:16px;height:62vh;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);gap:14px;text-align:center;padding:20px}
+.empty{border:1px dashed var(--line2);border-radius:16px;height:34vh;min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);gap:14px;text-align:center;padding:20px}
 .empty .t{letter-spacing:.25em;font-size:12px}
 .dropping{outline:2px dashed #888;outline-offset:6px;border-radius:12px}
 
@@ -122,6 +125,24 @@ svg.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;str
 details.more{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
 details.more summary{font-size:12px;color:var(--muted);cursor:pointer;list-style:none}
 details.more summary::-webkit-details-marker{display:none}
+.post.isdone .pimg::after{content:'업로드 완료';position:absolute;left:10px;bottom:10px;background:#7bd88f;color:#000;font-size:11px;font-weight:800;padding:3px 9px;border-radius:20px}
+.post.isdone .pimg canvas{opacity:.55}
+.ptools button.ok{background:#7bd88f;color:#000}
+.acct{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;padding:10px 12px;border:1px solid var(--line2);border-radius:12px}
+.acct span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.link.gray{color:var(--muted)}
+.daytabs{display:flex;gap:6px;margin-bottom:24px;flex-wrap:wrap}
+.daytab{position:relative;min-width:54px;height:40px;border-radius:12px;border:1px solid var(--line2);background:transparent;color:var(--text);font:inherit;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 12px}
+.daytab:hover{background:#161616}
+.daytab.on{background:#e9e9e9;color:#000;border-color:#e9e9e9}
+.daytab.today::before{content:'';position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:50%;background:#4a9eff}
+.daytab i{font-style:normal;font-size:11px;background:#262626;color:#bbb;border-radius:10px;padding:1px 7px}
+.daytab.on i{background:#000;color:#fff}
+.sechead{display:flex;align-items:baseline;gap:10px;font-size:17px;font-weight:800;margin:0 0 14px}
+.sechead span{font-size:12px;color:var(--muted);font-weight:500}
+.othersec{margin-top:44px;padding-top:26px;border-top:1px solid var(--line)}
+.emptyline{font-size:13px;color:var(--muted);padding:18px 0}
+.daysel{position:absolute;top:10px;left:10px;width:auto!important;padding:7px 10px!important;border-radius:20px!important;border:0!important;background:rgba(20,20,20,.78)!important;color:#fff!important;font-size:12px!important;font-weight:700;backdrop-filter:blur(6px);cursor:pointer}
 .pstatus{display:flex;align-items:center;justify-content:center;gap:6px;padding:12px;color:#5f5f5f;font-size:12px;letter-spacing:.12em;border-top:1px solid var(--line)}
 
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
@@ -141,6 +162,13 @@ details.more summary::-webkit-details-marker{display:none}
 <div class="app">
 <aside>
   <div class="sec">
+    <h3>저장 · 동기화 <span class="badge" id="syncBadge">이 기기에만</span></h3>
+    <button class="btn" id="btnLogin">Google 계정으로 로그인</button>
+    <div class="acct" id="acctInfo" hidden><span id="acctEmail"></span><button class="link gray" id="btnLogout">로그아웃</button></div>
+    <div id="nickWrap" hidden><div class="lbl">닉네임</div><input type="text" id="nickInput" maxlength="20" placeholder="예: 세혁"></div>
+  </div>
+
+  <div class="sec">
     <h3>작성 언어 설정</h3>
     <select id="lang">
       <option value="ko">한국어</option>
@@ -153,6 +181,7 @@ details.more summary::-webkit-details-marker{display:none}
     <h3>데이터 입력</h3>
     <button class="btn" id="btnUpload">🖼️ 이미지 업로드</button>
     <button class="btn" id="btnClear">🗑️ 목록 비우기</button>
+    <button class="btn" id="btnClearDone" hidden></button>
     <input type="file" id="fileImgs" accept="image/*,.png,.PNG,.jpg,.jpeg,.webp,.gif,.bmp,.heic" multiple hidden>
     <input type="file" id="fileSwap" accept="image/*,.png,.PNG,.jpg,.jpeg,.webp,.gif,.bmp,.heic" hidden>
     <input type="file" id="fileAdd" accept="image/*,.png,.PNG,.jpg,.jpeg,.webp,.gif,.bmp,.heic" multiple hidden>
@@ -208,14 +237,18 @@ details.more summary::-webkit-details-marker{display:none}
 
 <main id="main">
   <div class="topbar">
-    <h2>최종 결과 미리보기<span class="sub">1080 × 1350 · <span id="count">게시물 0개</span></span></h2>
+    <h2>최종 결과 미리보기<span class="sub">1080 × 1350 · <span id="count"></span></span></h2>
   </div>
+  <div class="daytabs" id="dayTabs"></div>
+  <div class="sechead" id="mineHead"></div>
   <div id="empty" class="empty">
     <div style="font-size:30px;opacity:.6">⧉</div>
     <div class="t">NO ITEMS TO PROCESS</div>
-    <div style="font-size:13px">왼쪽에서 이미지를 업로드하거나, 끌어다 놓거나, 캡처 후 붙여넣기(Ctrl+V) 하세요</div>
+    <div style="font-size:13px" id="emptyDay"></div>
+    <div style="font-size:12px">이미지를 업로드하거나, 끌어다 놓거나, 캡처 후 붙여넣기(Ctrl+V) 하세요</div>
   </div>
   <div class="posts" id="posts"></div>
+  <div id="othersWrap"></div>
 </main>
 </div>
 
@@ -312,6 +345,7 @@ const IC = {
   trash: '<svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M5.5 7l1 13h11l1-13M9 7V4h6v3"/></svg>',
   down: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>',
   swap: '<svg class="ic" viewBox="0 0 24 24"><path d="M4 8h13l-3-3M20 16H7l3 3"/></svg>',
+  check: '<svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   wait: '<svg class="ic" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M7 3h10M7 21h10M8 3v3.5L12 12l4-5.5V3M8 21v-3.5L12 12l4 5.5V21"/></svg>',
 };
 
@@ -414,12 +448,13 @@ function drawSlide(ctx, sl, post, isCover) {
 let raf = 0;
 function render() { cancelAnimationFrame(raf); raf = requestAnimationFrame(renderNow); }
 async function renderNow() {
-  await Promise.all(posts.filter(p => p.coverText.trim()).map(p => {
+  const all = [...posts, ...others];
+  await Promise.all(all.filter(p => p.coverText.trim()).map(p => {
     const f = fontOf(p.st.font);
     return document.fonts.load(`${f.w} 80px "${f.id}"`, p.coverText.replace(/\s/g, '')).catch(() => {});
   }));
   const name = S.account.trim() || 'your.account';
-  posts.forEach(p => {
+  all.forEach(p => {
     p.slides.forEach((sl, i) => {
       drawSlide(sl.ctx, sl, p, i === 0);
       const tc = sl.thumb.getContext('2d');
@@ -435,6 +470,7 @@ async function renderNow() {
     const p = posts[modal.p], sl = p && p.slides[modal.s];
     if (sl) drawSlide($('mCanvas').getContext('2d'), sl, p, modal.s === 0);
   }
+  scheduleSave();
 }
 
 /* ---------- posts / cards ---------- */
@@ -464,10 +500,10 @@ async function decodeFiles(files) {
 async function addPosts(files) {
   const imgs = await decodeFiles(files);
   if (!imgs.length) return;
-  imgs.forEach(img => posts.push({ id: uid(), coverText: '', caption: '', capImgs: [], st: { ...lastStyle }, open: false, slides: [makeSlide(img)], active: 0 }));
-  if (selIdx < 0) selIdx = posts.length - imgs.length;
+  imgs.forEach((img, i) => posts.push({ id: uid(), day: curDay, order: Date.now() + i, done: false, coverText: '', caption: '', capImgs: [], st: { ...lastStyle }, open: false, slides: [makeSlide(img)], active: 0 }));
+  selIdx = posts.length - imgs.length;
   rebuild();
-  toast(`게시물 ${imgs.length}개 추가됨`);
+  toast(`${DAYS[curDay]}요일에 게시물 ${imgs.length}개 추가됨`);
 }
 // 특정 게시물에 장 추가 (ADD)
 async function addSlides(pi, files) {
@@ -501,89 +537,169 @@ function removeSlide(pi, si) {
   p.active = Math.min(p.active, p.slides.length - 1);
   rebuild();
 }
+function rebuildSel() {
+  const mine = posts.map((p, i) => [p, i]).filter(([p]) => p.day === curDay);
+  $('posts').querySelectorAll(':scope > .post').forEach((el, k) => el.classList.toggle('sel', mine[k] && mine[k][1] === selIdx));
+}
 function select(pi) {
   selIdx = pi;
-  document.querySelectorAll('.post').forEach((el, i) => el.classList.toggle('sel', i === pi));
+  rebuildSel();
   syncSidebar();
 }
 function syncSidebar() {
   const p = posts[selIdx];
   $('caption').disabled = !p; $('caption').value = p ? p.caption : '';
   paintCapSrc();
-  const b = $('selBadge'); b.textContent = p ? `${selIdx + 1}번 게시물` : '게시물 없음'; b.classList.toggle('sel', !!p);
+  const b = $('selBadge'); b.textContent = p ? `${DAYS[p.day]}요일 ${posts.filter(q => q.day === p.day).indexOf(p) + 1}번` : '게시물 없음'; b.classList.toggle('sel', !!p);
 }
 
+const DAYS = ['월', '화', '수', '목', '금', '토', '일'];
+const todayIdx = () => (new Date().getDay() + 6) % 7;
+let curDay = todayIdx();
+let others = [];   // 다른 사람 게시물 (보기·다운로드 전용)
 let addTarget = -1;
-function rebuild() {
-  const wrap = $('posts'); wrap.innerHTML = '';
-  $('empty').hidden = posts.length > 0;
-  const nSlides = posts.reduce((a, p) => a + p.slides.length, 0);
-  $('count').textContent = `게시물 ${posts.length}개 · ${nSlides}장`;
-  $('btnZip').disabled = !posts.length;
-  $('btnAI').disabled = !posts.length || aiRunning;
-  posts.forEach((p, pi) => {
-    const el = document.createElement('div'); el.className = 'post' + (pi === selIdx ? ' sel' : '');
-    el.innerHTML = `
-      <div class="pimg"><div class="ptools"><button class="aa${p.open ? ' on' : ''}" title="텍스트 편집">Aa</button><button title="이미지 교체 (Gemini 편집본)">${IC.swap}</button><button title="이 게시물 다운로드">${IC.down}</button><button title="게시물 삭제">${IC.trash}</button></div>
-        <div class="pnum">${p.active + 1} / ${p.slides.length}</div></div>
-      <div class="pbar">${IC.heart}${IC.comment}${IC.repost}${IC.send}<span class="sp"></span>${IC.save}</div>
-      <div class="pcap"><b></b><span class="txt"></span><div class="more">더 보기</div></div>
-      <div class="pthumbs"></div>
-      <div class="pstatus"></div>`;
-    const pimg = el.querySelector('.pimg');
-    pimg.prepend(p.slides[p.active].canvas);
-    const [bText, bSwap, bDown, bDel] = el.querySelectorAll('.ptools button');
-    bSwap.onclick = e => { e.stopPropagation(); swapTarget = { pi, si: p.active }; $('fileSwap').click(); };
-    // 큰 이미지 위에 놓으면 = 교체, 카드의 다른 곳에 놓으면 = 장 추가
-    pimg.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); el.classList.add('drop'); pimg.style.outline = '3px solid #4a9eff'; pimg.style.outlineOffset = '-3px'; });
-    pimg.addEventListener('dragleave', () => { pimg.style.outline = ''; });
-    pimg.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); pimg.style.outline = ''; el.classList.remove('drop'); $('main').classList.remove('dropping'); swapImage(pi, p.active, e.dataTransfer.files); });
-    bText.onclick = e => { e.stopPropagation(); p.open = !p.open; selIdx = pi; rebuild(); };
-    if (p.open) pimg.after(buildTextPanel(p, pi));
-    const cur = p.slides[p.active];
-    if (isCapIdx(p.active)) {
-      const n = document.createElement('div'); n.className = 'capnote';
-      n.textContent = '캡션 캡처 · 캡션 생성에만 쓰이고 다운로드에서는 빠져요';
-      pimg.after(n);
-    } else if (cur.clean || cur.regen) {
-      const v = document.createElement('div'); v.className = 'vsel';
-      const opts = [['orig', '원본'], ['clean', cur.cleanManual ? '교체본' : '텍스트 제거'], ['regen', '재생성']].filter(([k]) => cur[k]);
-      v.innerHTML = `<div class="seg" style="grid-template-columns:repeat(${opts.length},1fr)">` +
-        opts.map(([k, l]) => `<button data-v="${k}" class="${cur.use === k ? 'on' : ''}">${l}</button>`).join('') + '</div>';
-      v.onclick = e => { e.stopPropagation(); const b = e.target.closest('button'); if (!b) return; setVersion(cur, b.dataset.v); rebuild(); };
-      pimg.after(v);
-    }
-    bDown.onclick = e => { e.stopPropagation(); exportZip([pi], `post_${pad(pi + 1)}.zip`); };
-    bDel.onclick = e => { e.stopPropagation(); removePost(pi); };
-    pimg.onclick = () => { select(pi); openEditor(pi, p.active); };
-    const cap = el.querySelector('.pcap');
-    cap.onclick = () => { cap.classList.toggle('open'); cap.querySelector('.more').textContent = cap.classList.contains('open') ? '접기' : '더 보기'; };
-    const strip = el.querySelector('.pthumbs');
-    p.slides.forEach((sl, si) => {
-      const t = document.createElement('div'); t.className = 'thumb' + (si === p.active ? ' on' : '');
-      t.appendChild(sl.thumb);
+
+function paintDayTabs() {
+  const box = $('dayTabs'); box.innerHTML = '';
+  DAYS.forEach((d, i) => {
+    const n = posts.filter(p => p.day === i).length + others.filter(p => p.day === i).length;
+    const b = document.createElement('button');
+    b.className = 'daytab' + (i === curDay ? ' on' : '') + (i === todayIdx() ? ' today' : '');
+    b.innerHTML = d + (n ? `<i>${n}</i>` : '');
+    b.title = i === todayIdx() ? '오늘' : '';
+    b.onclick = () => { curDay = i; selIdx = posts.findIndex(p => p.day === i); rebuild(); };
+    box.appendChild(b);
+  });
+}
+function myLabel() { return (user && nicks[user.uid]) ? `${nicks[user.uid]} (나)` : '내 게시물'; }
+function setHead(el, title, sub) {
+  el.innerHTML = ''; el.append(title);
+  const s = document.createElement('span'); s.textContent = sub; el.appendChild(s);
+}
+
+function buildCard(p, pi, ro) {
+  const el = document.createElement('div');
+  el.className = 'post' + (!ro && pi === selIdx ? ' sel' : '') + (p.done ? ' isdone' : '') + (ro ? ' ro' : '');
+  const tools = ro
+    ? `<button title="이 게시물 다운로드">${IC.down}</button>`
+    : `<button class="aa${p.open ? ' on' : ''}" title="텍스트 편집">Aa</button><button title="이미지 교체 (Gemini 편집본)">${IC.swap}</button><button class="${p.done ? 'ok' : ''}" title="업로드 완료 표시">${IC.check}</button><button title="이 게시물 다운로드">${IC.down}</button><button title="게시물 삭제">${IC.trash}</button>`;
+  el.innerHTML = `
+    <div class="pimg"><div class="ptools">${tools}</div>
+      <div class="pnum">${p.active + 1} / ${p.slides.length}</div></div>
+    <div class="pbar">${IC.heart}${IC.comment}${IC.repost}${IC.send}<span class="sp"></span>${IC.save}</div>
+    <div class="pcap"><b></b><span class="txt"></span><div class="more">더 보기</div></div>
+    <div class="pthumbs"></div>
+    ${ro ? '' : '<div class="pstatus"></div>'}`;
+  const pimg = el.querySelector('.pimg');
+  pimg.prepend(p.slides[p.active].canvas);
+  const cap = el.querySelector('.pcap');
+  cap.onclick = e => { e.stopPropagation(); cap.classList.toggle('open'); cap.querySelector('.more').textContent = cap.classList.contains('open') ? '접기' : '더 보기'; };
+  const strip = el.querySelector('.pthumbs');
+  p.slides.forEach((sl, si) => {
+    const t = document.createElement('div'); t.className = 'thumb' + (si === p.active ? ' on' : '');
+    t.appendChild(sl.thumb);
+    if (!ro) {
       const x = document.createElement('button'); x.className = 'x'; x.textContent = '✕';
       x.onclick = e => { e.stopPropagation(); removeSlide(pi, si); };
       t.appendChild(x);
-      if (isCapIdx(si)) t.insertAdjacentHTML('beforeend', '<span class="tag">캡션</span>');
-      else if (sl.use !== 'orig') t.insertAdjacentHTML('beforeend', '<span class="tag ai">AI</span>');
-      t.onclick = e => { e.stopPropagation(); p.active = si; selIdx = pi; rebuild(); };
-      strip.appendChild(t);
-    });
-    const add = document.createElement('div'); add.className = 'padd'; add.innerHTML = '<b>+</b>ADD';
-    add.onclick = e => { e.stopPropagation(); addTarget = pi; $('fileAdd').click(); };
-    strip.appendChild(add);
-    el.addEventListener('click', () => select(pi));
-    el.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); el.classList.add('drop'); });
-    el.addEventListener('dragleave', e => { if (!el.contains(e.relatedTarget)) el.classList.remove('drop'); });
-    el.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); el.classList.remove('drop'); $('main').classList.remove('dropping'); addSlides(pi, e.dataTransfer.files); });
-    p.el = { name: cap.querySelector('b'), txt: cap.querySelector('.txt'), status: el.querySelector('.pstatus') };
-    p.el.status.onclick = e => { e.stopPropagation(); if (!p.busy) processPost(p); };
-    paintStatus(p);
-    wrap.appendChild(el);
+    }
+    if (isCapIdx(si)) t.insertAdjacentHTML('beforeend', '<span class="tag">캡션</span>');
+    else if (sl.use !== 'orig') t.insertAdjacentHTML('beforeend', '<span class="tag ai">AI</span>');
+    t.onclick = e => { e.stopPropagation(); p.active = si; if (ro) renderOthers(); else { selIdx = pi; rebuild(); } };
+    strip.appendChild(t);
   });
-  syncSidebar();
+  p.el = { name: cap.querySelector('b'), txt: cap.querySelector('.txt'), status: el.querySelector('.pstatus') };
+  const btns = el.querySelectorAll('.ptools button');
+  if (ro) {
+    btns[0].onclick = e => { e.stopPropagation(); exportZip([p], `${nicks[p.owner] || 'post'}_${DAYS[p.day]}.zip`); };
+    return el;
+  }
+
+  // ----- 내 게시물 전용 -----
+  const [bText, bSwap, bDone, bDown, bDel] = btns;
+  const daySel = document.createElement('select'); daySel.className = 'daysel'; daySel.title = '요일 옮기기';
+  daySel.innerHTML = DAYS.map((d, i) => `<option value="${i}" ${i === p.day ? 'selected' : ''}>${d}요일</option>`).join('');
+  daySel.onclick = e => e.stopPropagation();
+  daySel.onchange = () => { p.day = +daySel.value; toast(`${DAYS[p.day]}요일로 옮겼어요`); rebuild(); };
+  pimg.appendChild(daySel);
+  bDone.onclick = e => { e.stopPropagation(); p.done = !p.done; rebuild(); };
+  bSwap.onclick = e => { e.stopPropagation(); swapTarget = { pi, si: p.active }; $('fileSwap').click(); };
+  bText.onclick = e => { e.stopPropagation(); p.open = !p.open; selIdx = pi; rebuild(); };
+  bDown.onclick = e => { e.stopPropagation(); exportZip([p], `post_${DAYS[p.day]}_${pad(pi + 1)}.zip`); };
+  bDel.onclick = e => { e.stopPropagation(); if (confirm('이 게시물을 삭제할까요?')) removePost(pi); };
+  // 큰 이미지 위에 놓으면 = 교체, 카드의 다른 곳에 놓으면 = 장 추가
+  pimg.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); el.classList.add('drop'); pimg.style.outline = '3px solid #4a9eff'; pimg.style.outlineOffset = '-3px'; });
+  pimg.addEventListener('dragleave', () => { pimg.style.outline = ''; });
+  pimg.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); pimg.style.outline = ''; el.classList.remove('drop'); $('main').classList.remove('dropping'); swapImage(pi, p.active, e.dataTransfer.files); });
+  pimg.onclick = () => { select(pi); openEditor(pi, p.active); };
+  if (p.open) pimg.after(buildTextPanel(p, pi));
+  const cur = p.slides[p.active];
+  if (isCapIdx(p.active)) {
+    const n = document.createElement('div'); n.className = 'capnote';
+    n.textContent = '캡션 캡처 · 캡션 생성에만 쓰이고 다운로드에서는 빠져요';
+    pimg.after(n);
+  } else if (cur.clean || cur.regen) {
+    const v = document.createElement('div'); v.className = 'vsel';
+    const opts = [['orig', '원본'], ['clean', cur.cleanManual ? '교체본' : '텍스트 제거'], ['regen', '재생성']].filter(([k]) => cur[k]);
+    v.innerHTML = `<div class="seg" style="grid-template-columns:repeat(${opts.length},1fr)">` +
+      opts.map(([k, l]) => `<button data-v="${k}" class="${cur.use === k ? 'on' : ''}">${l}</button>`).join('') + '</div>';
+    v.onclick = e => { e.stopPropagation(); const b = e.target.closest('button'); if (!b) return; setVersion(cur, b.dataset.v); rebuild(); };
+    pimg.after(v);
+  }
+  const add = document.createElement('div'); add.className = 'padd'; add.innerHTML = '<b>+</b>ADD';
+  add.onclick = e => { e.stopPropagation(); addTarget = pi; $('fileAdd').click(); };
+  strip.appendChild(add);
+  el.addEventListener('click', () => select(pi));
+  el.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); el.classList.add('drop'); });
+  el.addEventListener('dragleave', e => { if (!el.contains(e.relatedTarget)) el.classList.remove('drop'); });
+  el.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); el.classList.remove('drop'); $('main').classList.remove('dropping'); addSlides(pi, e.dataTransfer.files); });
+  p.el.status.onclick = e => { e.stopPropagation(); if (!p.busy) processPost(p); };
+  paintStatus(p);
+  return el;
+}
+
+// 다른 사람 게시물 (아래쪽) — 내 카드는 건드리지 않고 이 부분만 다시 그림
+function renderOthers() {
+  const wrap = $('othersWrap'); wrap.innerHTML = '';
+  const theirs = others.filter(p => p.day === curDay);
+  const owners = [...new Set(others.map(p => p.owner))].sort((a, b) => (nicks[a] || '').localeCompare(nicks[b] || ''));
+  owners.forEach(o => {
+    const list = theirs.filter(p => p.owner === o).sort((a, b) => a.order - b.order);
+    const sec = document.createElement('div'); sec.className = 'othersec';
+    const head = document.createElement('div'); head.className = 'sechead';
+    setHead(head, nicks[o] || '다른 사람', `${DAYS[curDay]}요일 · ${list.length}개`);
+    sec.appendChild(head);
+    if (!list.length) {
+      const e = document.createElement('div'); e.className = 'emptyline'; e.textContent = `${DAYS[curDay]}요일에 올린 게시물이 없어요`;
+      sec.appendChild(e);
+    } else {
+      const grid = document.createElement('div'); grid.className = 'posts';
+      list.forEach(p => grid.appendChild(buildCard(p, -1, true)));
+      sec.appendChild(grid);
+    }
+    wrap.appendChild(sec);
+  });
+  paintDayTabs();
   render();
+}
+
+function rebuild() {
+  const mine = posts.map((p, pi) => [p, pi]).filter(([p]) => p.day === curDay);
+  if (!posts[selIdx] || posts[selIdx].day !== curDay) selIdx = mine.length ? mine[0][1] : -1;
+  setHead($('mineHead'), myLabel(), `${DAYS[curDay]}요일 · ${mine.length}개`);
+  $('empty').hidden = mine.length > 0;
+  $('emptyDay').textContent = `${DAYS[curDay]}요일에 만든 게시물이 없어요`;
+  const nSlides = mine.reduce((a, [p]) => a + p.slides.length, 0);
+  $('count').textContent = `${DAYS[curDay]}요일 내 게시물 ${mine.length}개 · ${nSlides}장`;
+  $('btnZip').disabled = !mine.length;
+  $('btnZip').textContent = `⬇ ${DAYS[curDay]}요일 내 게시물 다운로드 (ZIP)`;
+  const nDone = posts.filter(p => p.done).length;
+  $('btnClearDone').hidden = !nDone; $('btnClearDone').textContent = `✓ 업로드 완료한 게시물 정리 (${nDone})`;
+  $('btnAI').disabled = !posts.length || aiRunning;
+  const wrap = $('posts'); wrap.innerHTML = '';
+  mine.forEach(([p, pi]) => wrap.appendChild(buildCard(p, pi, false)));
+  syncSidebar();
+  renderOthers();
 }
 
 /* ---------- editor modal ---------- */
@@ -633,11 +749,11 @@ function saveBlob(blob, name) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
 }
-async function exportZip(indexes, filename) {
+async function exportZip(list, filename) {
   await renderNow();
   const zip = new JSZip();
-  for (const pi of indexes) {
-    const p = posts[pi], dir = indexes.length > 1 ? zip.folder(`post_${pad(pi + 1)}`) : zip;
+  for (let k = 0; k < list.length; k++) {
+    const p = list[k], dir = list.length > 1 ? zip.folder(`post_${pad(k + 1)}`) : zip;
     let n = 0;
     for (let i = 0; i < p.slides.length; i++) {
       if (isCapIdx(i)) continue;
@@ -651,7 +767,7 @@ async function exportZip(indexes, filename) {
 }
 $('btnZip').onclick = () => {
   const d = new Date();
-  exportZip(posts.map((_, i) => i), `cardnews_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.zip`);
+  exportZip(posts.filter(p => p.day === curDay), `cardnews_${DAYS[curDay]}_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.zip`);
 };
 
 /* ---------- AI ---------- */
@@ -927,6 +1043,14 @@ function buildTextPanel(p, pi) {
   el.addEventListener('click', e => e.stopPropagation());
   return el;
 }
+function syncControls() {
+  document.querySelectorAll('[data-bind]').forEach(el => {
+    const k = el.dataset.bind;
+    if (el.type === 'checkbox') el.checked = !!S[k]; else el.value = S[k] ?? '';
+    const out = document.querySelector(`[data-out="${k}"]`); if (out) out.textContent = fmt(k, S[k]);
+  });
+  syncSegs(); $('lang').value = S.lang;
+}
 document.querySelectorAll('[data-bind]').forEach(el => {
   const k = el.dataset.bind;
   if (el.type === 'checkbox') el.checked = !!S[k]; else el.value = S[k];
@@ -965,7 +1089,16 @@ $('btnUpload').onclick = () => $('fileImgs').click();
 $('fileImgs').onchange = e => { addPosts(e.target.files); e.target.value = ''; };
 $('fileSwap').onchange = e => { if (swapTarget) swapImage(swapTarget.pi, swapTarget.si, e.target.files); e.target.value = ''; };
 $('fileAdd').onchange = e => { if (addTarget >= 0) addSlides(addTarget, e.target.files); e.target.value = ''; };
-$('btnClear').onclick = () => { if (!posts.length) return; posts = []; selIdx = -1; rebuild(); toast('목록을 비웠어요'); };
+$('btnClear').onclick = () => {
+  if (!posts.length) return;
+  if (!confirm(`게시물 ${posts.length}개를 모두 삭제할까요?` + (user ? '\n(저장된 데이터도 함께 지워져요)' : ''))) return;
+  posts = []; selIdx = -1; rebuild(); toast('목록을 비웠어요');
+};
+$('btnClearDone').onclick = () => {
+  const n = posts.filter(p => p.done).length; if (!n) return;
+  if (!confirm(`업로드 완료한 게시물 ${n}개를 삭제할까요?`)) return;
+  posts = posts.filter(p => !p.done); selIdx = posts.length ? 0 : -1; rebuild(); toast(`${n}개 정리했어요`);
+};
 const main = $('main');
 main.addEventListener('dragover', e => { e.preventDefault(); main.classList.add('dropping'); });
 main.addEventListener('dragleave', e => { if (!main.contains(e.relatedTarget)) main.classList.remove('dropping'); });
@@ -995,6 +1128,256 @@ $('fileLogo').onchange = async e => {
 };
 $('btnLogoDel').onclick = () => { setLogo(null); try { localStorage.removeItem('cnm_logo'); } catch (e) {} };
 try { const saved = localStorage.getItem('cnm_logo'); if (saved) setLogo(saved); } catch (e) {}
+
+/* ---------- 클라우드 저장 · 2인 공용 작업공간 (Firebase) ---------- */
+// ▼ Firebase 콘솔 → 프로젝트 설정 → 내 앱(웹)의 firebaseConfig 값을 여기에 붙여넣으세요
+const FIREBASE_CONFIG = {
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: ""
+};
+let db = null, user = null, saving = false, dirtyAgain = false, saveTimer = 0, loadingCloud = false;
+const savedPosts = new Map();      // 내 게시물 id → 마지막으로 저장한 내용(JSON)
+const savedImgs = new Set();       // 내가 저장한 이미지 문서 id
+let savedSettings = '', savedLogo;
+const nicks = {};                  // uid → 닉네임
+const imgCache = new Map();        // 이미지 문서 id → 이미지
+let unsubPosts = null, unsubProfiles = null, nickTimer = 0, othersTimer = 0;
+const imgIdMap = new WeakMap();
+const imgId = im => { if (!imgIdMap.has(im)) imgIdMap.set(im, uid()); return imgIdMap.get(im); };
+const col = n => db.collection(n);
+const userCol = name => db.collection('users').doc(user.uid).collection(name);
+
+function setSync(state, msg = '') {
+  const b = $('syncBadge');
+  const t = { off: '로그인 필요', loading: `불러오는 중 ${msg}`, saving: '저장 중…', saved: '저장됨 ✓', error: '저장 실패', local: '이 기기에만' }[state];
+  b.textContent = t; b.title = state === 'error' ? msg : '';
+  b.classList.toggle('sel', state === 'saved');
+  b.style.color = state === 'error' ? 'var(--danger)' : '';
+}
+// Firestore 문서 1개 한도(1MB) 안에 들어가도록 압축
+function compressImg(img, { max = 2000, png = false } = {}) {
+  let m = max, q = 0.86;
+  for (let i = 0; i < 12; i++) {
+    const k = Math.min(1, m / Math.max(iW(img), iH(img)));
+    const c = document.createElement('canvas'); c.width = Math.round(iW(img) * k); c.height = Math.round(iH(img) * k);
+    const x = c.getContext('2d');
+    if (!png) { x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); }
+    x.drawImage(img, 0, 0, c.width, c.height);
+    const url = png ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', q);
+    if (url.length < 900000) return url;
+    if (!png && q > 0.62) q -= 0.08; else m *= 0.85;
+  }
+  throw new Error('이미지가 너무 커요');
+}
+function postMeta(p) {
+  return {
+    owner: user ? user.uid : '', day: p.day, order: p.order, coverText: p.coverText, caption: p.caption,
+    st: p.st, active: p.active, source: p.source || '', done: !!p.done,
+    slides: p.slides.map(sl => ({ id: sl.id, use: sl.use, panX: sl.panX, panY: sl.panY, zoom: sl.zoom,
+      has: ['orig', 'clean', 'regen'].filter(v => sl[v]), cleanManual: !!sl.cleanManual })),
+    caps: p.capImgs.map(imgId)
+  };
+}
+const cloudSettings = () => { const o = { ...S }; delete o.aiToken; return { S: o, lastStyle }; };
+
+function scheduleSave() {
+  if (!user || loadingCloud) return;
+  if (saving) { dirtyAgain = true; return; }
+  clearTimeout(saveTimer); saveTimer = setTimeout(saveAll, 700);
+}
+async function saveAll() {
+  if (!user || saving || loadingCloud) return;
+  saving = true; let changed = false;
+  try {
+    // 1) 이미지 (새로 생긴 것만 업로드) — 게시물보다 먼저 올려야 상대방 화면에서 바로 보임
+    const want = new Set(), uploads = [];
+    for (const p of posts) {
+      const list = [];
+      p.slides.forEach(sl => ['orig', 'clean', 'regen'].forEach(v => { if (sl[v]) list.push([`${sl.id}_${v}`, sl[v]]); }));
+      p.capImgs.forEach(im => list.push(['cap_' + imgId(im), im]));
+      for (const [id, im] of list) {
+        want.add(id);
+        if (!savedImgs.has(id)) uploads.push(col('images').doc(id).set({ data: compressImg(im), owner: user.uid, post: p.id, at: Date.now() }).then(() => savedImgs.add(id)));
+      }
+    }
+    if (uploads.length) { changed = true; setSync('saving'); await Promise.all(uploads); }
+    // 2) 게시물 내용
+    const ids = new Set(posts.map(p => p.id));
+    for (const p of posts) {
+      const m = JSON.stringify(postMeta(p));
+      if (savedPosts.get(p.id) !== m) { changed = true; setSync('saving'); await col('posts').doc(p.id).set(JSON.parse(m)); savedPosts.set(p.id, m); }
+    }
+    // 3) 삭제된 게시물·이미지 정리
+    for (const id of [...savedPosts.keys()]) if (!ids.has(id)) { changed = true; await col('posts').doc(id).delete(); savedPosts.delete(id); }
+    for (const id of [...savedImgs]) if (!want.has(id)) { changed = true; await col('images').doc(id).delete(); savedImgs.delete(id); }
+    // 4) 개인 설정 · 로고
+    const sm = JSON.stringify(cloudSettings());
+    if (sm !== savedSettings) { changed = true; await userCol('meta').doc('settings').set(JSON.parse(sm)); savedSettings = sm; }
+    if (logoSrc !== savedLogo) {
+      changed = true;
+      await userCol('meta').doc('logo').set({ data: logo ? compressImg(logo, { max: 800, png: true }) : '' });
+      savedLogo = logoSrc;
+    }
+    if (changed || $('syncBadge').textContent !== '저장됨 ✓') setSync('saved');
+  } catch (e) { console.error(e); setSync('error', e.message); }
+  finally { saving = false; if (dirtyAgain) { dirtyAgain = false; scheduleSave(); } }
+}
+
+async function getImg(id) {
+  if (imgCache.has(id)) return imgCache.get(id);
+  const d = await col('images').doc(id).get();
+  if (!d.exists) return null;
+  const im = await loadImg(d.data().data);
+  imgCache.set(id, im);
+  return im;
+}
+async function postFromMeta(m, mine) {
+  const ids = [];
+  (m.slides || []).forEach(s => (s.has || ['orig']).forEach(v => ids.push(`${s.id}_${v}`)));
+  (m.caps || []).forEach(c => ids.push('cap_' + c));
+  const map = {};
+  await Promise.all(ids.map(async id => { const im = await getImg(id); if (im) { map[id] = im; if (mine) savedImgs.add(id); } }));
+  const slides = (m.slides || []).map(s => {
+    const o = map[`${s.id}_orig`]; if (!o) return null;
+    const sl = makeSlide(o);
+    sl.id = s.id; sl.clean = map[`${s.id}_clean`] || null; sl.regen = map[`${s.id}_regen`] || null;
+    sl.cleanManual = !!s.cleanManual; sl.use = sl[s.use] ? s.use : 'orig'; sl.img = sl[sl.use];
+    sl.panX = s.panX || 0; sl.panY = s.panY || 0; sl.zoom = s.zoom || 1;
+    return sl;
+  }).filter(Boolean);
+  if (!slides.length) return null;
+  const caps = (m.caps || []).map(c => { const im = map['cap_' + c]; if (im) imgIdMap.set(im, c); return im; }).filter(Boolean);
+  return { id: m.id, owner: m.owner, day: m.day ?? todayIdx(), order: m.order || 0, coverText: m.coverText || '', caption: m.caption || '',
+    capImgs: caps, st: { ...STYLE_DEFAULT, ...(m.st || {}) }, open: false, slides,
+    active: Math.min(m.active || 0, slides.length - 1), source: m.source || '', done: !!m.done };
+}
+
+async function loadCloud() {
+  loadingCloud = true; setSync('loading');
+  try {
+    const [setDoc, logoDoc, prof, snap] = await Promise.all([
+      userCol('meta').doc('settings').get(), userCol('meta').doc('logo').get(),
+      col('profiles').doc(user.uid).get(), col('posts').where('owner', '==', user.uid).get()
+    ]);
+    if (prof.exists) nicks[user.uid] = prof.data().nickname || '';
+    $('nickInput').value = nicks[user.uid] || '';
+    if (setDoc.exists) {
+      const d = setDoc.data();
+      Object.assign(S, d.S || {}); save();
+      if (d.lastStyle) saveStyle({ ...STYLE_DEFAULT, ...d.lastStyle });
+      syncControls();
+    }
+    if (logoDoc.exists && logoDoc.data().data) {
+      await setLogo(logoDoc.data().data);
+      try { localStorage.setItem('cnm_logo', logoSrc); } catch (e) {}
+    }
+    // 클라우드에 아직 없으면 이 기기의 설정·로고를 올리도록 비워 둠
+    savedLogo = logoDoc.exists ? logoSrc : undefined;
+    savedSettings = setDoc.exists ? JSON.stringify(cloudSettings()) : '';
+    const metas = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0));
+    let n = 0;
+    for (const m of metas) {
+      n++; setSync('loading', `${n}/${metas.length}`);
+      if (posts.some(p => p.id === m.id)) continue;
+      const p = await postFromMeta(m, true);
+      if (!p) continue;
+      posts.push(p);
+      savedPosts.set(p.id, JSON.stringify(postMeta(p)));
+    }
+    posts.sort((a, b) => a.order - b.order);
+    setSync('saved');
+  } catch (e) { console.error(e); setSync('error', e.message); toast('불러오기 실패: ' + e.message); }
+  finally { loadingCloud = false; rebuild(); scheduleSave(); }
+  listenShared();
+  if (!nicks[user.uid]) {
+    const v = (prompt('사용할 닉네임을 정해주세요 (예: 세혁)') || '').trim();
+    if (v) { $('nickInput').value = v; saveNick(v); }
+  }
+}
+
+// 상대방 게시물·닉네임을 실시간으로 받아옴
+function listenShared() {
+  unsubProfiles = col('profiles').onSnapshot(snap => {
+    snap.forEach(d => { nicks[d.id] = d.data().nickname || ''; });
+    setHead($('mineHead'), myLabel(), $('mineHead').querySelector('span')?.textContent || '');
+    renderOthers();
+  }, e => console.error(e));
+  unsubPosts = col('posts').onSnapshot(snap => {
+    snap.docChanges().forEach(ch => {
+      const m = { id: ch.doc.id, ...ch.doc.data() };
+      if (!user || m.owner === user.uid) return;
+      if (ch.type === 'removed') { others = others.filter(p => p.id !== m.id); scheduleOthers(); }
+      else upsertOther(m);
+    });
+  }, e => console.error(e));
+}
+async function upsertOther(m) {
+  try {
+    const p = await postFromMeta(m, false);
+    const old = others.find(o => o.id === m.id);
+    others = others.filter(o => o.id !== m.id);
+    if (p) { if (old) p.active = Math.min(old.active, p.slides.length - 1); others.push(p); }
+    scheduleOthers();
+  } catch (e) { console.error(e); }
+}
+function scheduleOthers() { clearTimeout(othersTimer); othersTimer = setTimeout(renderOthers, 150); }
+
+function saveNick(v) {
+  if (!user) return;
+  nicks[user.uid] = v;
+  setHead($('mineHead'), myLabel(), $('mineHead').querySelector('span')?.textContent || '');
+  clearTimeout(nickTimer);
+  nickTimer = setTimeout(() => col('profiles').doc(user.uid).set({ nickname: v, email: user.email || '' })
+    .catch(e => toast('닉네임 저장 실패: ' + e.message)), 600);
+}
+$('nickInput').addEventListener('input', e => saveNick(e.target.value.trim()));
+
+function paintAccount() {
+  $('btnLogin').hidden = !!user;
+  $('acctInfo').hidden = !user; $('nickWrap').hidden = !user;
+  if (user) $('acctEmail').textContent = user.email || '로그인됨';
+}
+async function login() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  try { await firebase.auth().signInWithPopup(provider); }
+  catch (e) {
+    if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment', 'auth/cancelled-popup-request'].includes(e.code))
+      return firebase.auth().signInWithRedirect(provider);
+    if (e.code !== 'auth/popup-closed-by-user') toast('로그인 실패: ' + (e.code || e.message));
+  }
+}
+$('btnLogin').onclick = () => {
+  if (!db) { toast('Firebase 설정이 아직 비어 있어요 (FIREBASE_CONFIG)'); return; }
+  login();
+};
+$('btnLogout').onclick = async () => {
+  if (!confirm('로그아웃할까요? 이 기기 화면에서만 지워지고, 저장된 작업은 그대로 남아요.')) return;
+  clearTimeout(saveTimer); await firebase.auth().signOut();
+};
+
+if (typeof firebase !== 'undefined' && FIREBASE_CONFIG.apiKey) {
+  firebase.initializeApp(FIREBASE_CONFIG);
+  db = firebase.firestore();
+  db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
+  firebase.auth().onAuthStateChanged(u => {
+    const prev = user; user = u; paintAccount();
+    if (u) loadCloud();
+    else {
+      if (unsubPosts) unsubPosts(); if (unsubProfiles) unsubProfiles(); unsubPosts = unsubProfiles = null;
+      savedPosts.clear(); savedImgs.clear(); savedSettings = ''; savedLogo = undefined;
+      Object.keys(nicks).forEach(k => delete nicks[k]); others = [];
+      if (prev) { posts = []; selIdx = -1; rebuild(); }
+      setSync('off');
+    }
+  });
+} else {
+  setSync('local');
+}
 
 rebuild();
 </script>
