@@ -143,6 +143,11 @@ details.more summary::-webkit-details-marker{display:none}
 .othersec{margin-top:44px;padding-top:26px;border-top:1px solid var(--line)}
 .emptyline{font-size:13px;color:var(--muted);padding:18px 0}
 .daysel{position:absolute;top:10px;left:10px;width:auto!important;padding:7px 10px!important;border-radius:20px!important;border:0!important;background:rgba(20,20,20,.78)!important;color:#fff!important;font-size:12px!important;font-weight:700;backdrop-filter:blur(6px);cursor:pointer}
+.gate{position:fixed;inset:0;background:#000;z-index:80;display:flex;align-items:center;justify-content:center;padding:20px}
+.gbox{width:100%;max-width:360px}
+.glogo{font-size:26px;font-weight:800;margin-bottom:10px;letter-spacing:-.02em}
+.gsub{font-size:13px;color:var(--muted);margin-bottom:26px;line-height:1.6}
+.gor{text-align:center;color:var(--muted);font-size:12px;margin:18px 0 10px}
 .pstatus{display:flex;align-items:center;justify-content:center;gap:6px;padding:12px;color:#5f5f5f;font-size:12px;letter-spacing:.12em;border-top:1px solid var(--line)}
 
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
@@ -163,7 +168,6 @@ details.more summary::-webkit-details-marker{display:none}
 <aside>
   <div class="sec">
     <h3>저장 · 동기화 <span class="badge" id="syncBadge">이 기기에만</span></h3>
-    <button class="btn" id="btnLogin">Google 계정으로 로그인</button>
     <div class="acct" id="acctInfo" hidden><span id="acctEmail"></span><button class="link gray" id="btnLogout">로그아웃</button></div>
     <div id="nickWrap" hidden><div class="lbl">닉네임</div><input type="text" id="nickInput" maxlength="20" placeholder="예: 세혁"></div>
   </div>
@@ -250,6 +254,22 @@ details.more summary::-webkit-details-marker{display:none}
   <div class="posts" id="posts"></div>
   <div id="othersWrap"></div>
 </main>
+</div>
+
+<div class="gate" id="gate" hidden>
+  <div class="gbox">
+    <div class="glogo">카드뉴스 메이커</div>
+    <div id="gLoading" class="gsub">확인 중…</div>
+    <div id="gForm" hidden>
+      <div class="gsub">로그인하면 작업이 자동 저장되고, 어느 기기에서든 이어서 할 수 있어요.</div>
+      <button class="btn" id="btnLogin">Google 계정으로 계속하기</button>
+      <div class="gor">또는 이메일로</div>
+      <input type="text" id="emEmail" placeholder="이메일" autocomplete="email">
+      <input type="password" id="emPw" placeholder="비밀번호 (6자 이상)" autocomplete="current-password" style="margin-top:8px">
+      <div class="two" style="margin-top:10px"><button class="btn primary" id="btnEmLogin">로그인</button><button class="btn" id="btnEmJoin" style="margin-top:0">회원가입</button></div>
+      <div style="text-align:center;margin-top:14px"><button class="link gray" id="btnEmReset">비밀번호를 잊었어요</button></div>
+    </div>
+  </div>
 </div>
 
 <div class="modal" id="modal">
@@ -1132,12 +1152,12 @@ try { const saved = localStorage.getItem('cnm_logo'); if (saved) setLogo(saved);
 /* ---------- 클라우드 저장 · 2인 공용 작업공간 (Firebase) ---------- */
 // ▼ Firebase 콘솔 → 프로젝트 설정 → 내 앱(웹)의 firebaseConfig 값을 여기에 붙여넣으세요
 const FIREBASE_CONFIG = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  apiKey: "AIzaSyA5v4Gft-9sVoov3D3al6V8AuakRcCOP2Q",
+  authDomain: "card-news-9d009.firebaseapp.com",
+  projectId: "card-news-9d009",
+  storageBucket: "card-news-9d009.firebasestorage.app",
+  messagingSenderId: "1020601023363",
+  appId: "1:1020601023363:web:34d397a30dc8c4dab294b6"
 };
 let db = null, user = null, saving = false, dirtyAgain = false, saveTimer = 0, loadingCloud = false;
 const savedPosts = new Map();      // 내 게시물 id → 마지막으로 저장한 내용(JSON)
@@ -1337,7 +1357,8 @@ function saveNick(v) {
 $('nickInput').addEventListener('input', e => saveNick(e.target.value.trim()));
 
 function paintAccount() {
-  $('btnLogin').hidden = !!user;
+  $('gate').hidden = !db || !!user;
+  $('gLoading').hidden = true; $('gForm').hidden = false;
   $('acctInfo').hidden = !user; $('nickWrap').hidden = !user;
   if (user) $('acctEmail').textContent = user.email || '로그인됨';
 }
@@ -1351,6 +1372,35 @@ async function login() {
     if (e.code !== 'auth/popup-closed-by-user') toast('로그인 실패: ' + (e.code || e.message));
   }
 }
+const AUTH_MSG = {
+  'auth/email-already-in-use': '이미 가입된 이메일이에요. 로그인을 눌러주세요',
+  'auth/invalid-email': '이메일 형식이 올바르지 않아요',
+  'auth/weak-password': '비밀번호는 6자 이상이어야 해요',
+  'auth/invalid-credential': '이메일 또는 비밀번호가 맞지 않아요',
+  'auth/wrong-password': '이메일 또는 비밀번호가 맞지 않아요',
+  'auth/user-not-found': '가입되지 않은 이메일이에요',
+  'auth/too-many-requests': '시도가 너무 많아요. 잠시 후 다시 해주세요',
+  'auth/missing-password': '비밀번호를 입력해주세요',
+};
+const authErr = e => toast(AUTH_MSG[e.code] || ('오류: ' + (e.code || e.message)));
+async function emailAuth(join) {
+  if (!db) { toast('Firebase 설정이 아직 비어 있어요 (FIREBASE_CONFIG)'); return; }
+  const email = $('emEmail').value.trim(), pw = $('emPw').value;
+  if (!email || !pw) { toast('이메일과 비밀번호를 입력해주세요'); return; }
+  try {
+    if (join) await firebase.auth().createUserWithEmailAndPassword(email, pw);
+    else await firebase.auth().signInWithEmailAndPassword(email, pw);
+    $('emPw').value = '';
+  } catch (e) { authErr(e); }
+}
+$('btnEmLogin').onclick = () => emailAuth(false);
+$('btnEmJoin').onclick = () => emailAuth(true);
+$('emPw').addEventListener('keydown', e => { if (e.key === 'Enter') emailAuth(false); });
+$('btnEmReset').onclick = async () => {
+  const email = $('emEmail').value.trim();
+  if (!email) { toast('위 칸에 이메일을 먼저 입력해주세요'); return; }
+  try { await firebase.auth().sendPasswordResetEmail(email); toast('비밀번호 재설정 메일을 보냈어요'); } catch (e) { authErr(e); }
+};
 $('btnLogin').onclick = () => {
   if (!db) { toast('Firebase 설정이 아직 비어 있어요 (FIREBASE_CONFIG)'); return; }
   login();
@@ -1362,6 +1412,7 @@ $('btnLogout').onclick = async () => {
 
 if (typeof firebase !== 'undefined' && FIREBASE_CONFIG.apiKey) {
   firebase.initializeApp(FIREBASE_CONFIG);
+  $('gate').hidden = false;
   db = firebase.firestore();
   db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
   firebase.auth().onAuthStateChanged(u => {
