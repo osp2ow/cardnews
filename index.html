@@ -169,8 +169,7 @@ details.more summary::-webkit-details-marker{display:none}
   <div class="sec">
     <h3>저장 · 동기화 <span class="badge" id="syncBadge">이 기기에만</span></h3>
     <div class="acct" id="acctInfo" hidden><span id="acctEmail"></span><button class="link gray" id="btnLogout">로그아웃</button></div>
-    <div id="nickWrap" hidden><div class="lbl">닉네임</div><input type="text" id="nickInput" maxlength="20" placeholder="예: 세혁">
-      <div style="text-align:right;margin-top:8px"><button class="link" id="btnDelAcct">계정 삭제</button></div></div>
+    <div id="nickWrap" hidden><div class="lbl">닉네임</div><input type="text" id="nickInput" maxlength="20" placeholder="예: 세혁"></div>
   </div>
 
   <div class="sec">
@@ -278,6 +277,10 @@ details.more summary::-webkit-details-marker{display:none}
     <canvas id="mCanvas" width="1080" height="1350"></canvas>
     <div class="mside">
       <h4 id="mTitle"></h4>
+      <div id="mModeWrap" hidden>
+        <div class="lbl">드래그로 움직일 것</div>
+        <div class="seg" id="mMode" style="grid-template-columns:1fr 1fr"><button data-m="photo">사진</button><button data-m="text">글자</button></div>
+      </div>
       <div class="lbl">확대 <span id="mZoomOut"></span></div>
       <input type="range" id="mZoom" min="1" max="2.5" step="0.01">
       <div id="mCoverWrap" hidden>
@@ -322,7 +325,8 @@ const DEFAULTS = { lang: 'ko', logoPos: 'tl', logoSize: 16, logoAll: true, accou
   aiUrl: '', aiToken: '', aiSize: '1K', aiClean: false, aiRegen: false, capSlide: true, credit: true };
 const STYLE_DEFAULT = {
   font: 'Pretendard', fontSize: 96, tracking: -3, textPos: 'bottom', align: 'center',
-  textColor: '#ffffff', accent: '#ffd84a', overlay: 0.7, shadow: true
+  textColor: '#ffffff', accent: '#ffd84a', overlay: 0.7, shadow: true,
+  offX: 0, offY: 0, lineH: 1.28, boxW: 84
 };
 // 새 게시물은 마지막으로 편집한 스타일을 이어받음
 let lastStyle = { ...STYLE_DEFAULT };
@@ -417,13 +421,15 @@ function wrapLines(ctx, paras, maxW) {
   return lines;
 }
 function drawCoverText(ctx, post) {
-  const st = post.st, text = post.coverText, f = fontOf(st.font), size = st.fontSize, PAD = 90;
+  const st = { ...STYLE_DEFAULT, ...post.st }, text = post.coverText, f = fontOf(st.font), size = st.fontSize;
+  const boxW = W * st.boxW / 100, PAD = (W - boxW) / 2;
   ctx.font = `${f.w} ${size}px "${f.id}"`;
   if ('letterSpacing' in ctx) ctx.letterSpacing = (st.tracking * size / 100) + 'px';
   ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
-  const lines = wrapLines(ctx, parseText(text), W - PAD * 2);
-  const lh = size * 1.28, blockH = lines.length * lh;
-  const y0 = st.textPos === 'top' ? 190 : st.textPos === 'center' ? (H - blockH) / 2 : H - 170 - blockH;
+  const lines = wrapLines(ctx, parseText(text), boxW);
+  const lh = size * st.lineH, blockH = lines.length * lh;
+  const y0 = (st.textPos === 'top' ? 190 : st.textPos === 'center' ? (H - blockH) / 2 : H - 170 - blockH) + st.offY;
+  let minX = W, maxX = 0;
   if (st.shadow) { ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = size * 0.25; ctx.shadowOffsetY = size * 0.04; }
   lines.forEach((line, i) => {
     const runs = [];
@@ -433,12 +439,14 @@ function drawCoverText(ctx, post) {
     }
     const widths = runs.map(r => ctx.measureText(r.t).width);
     const total = widths.reduce((a, b) => a + b, 0);
-    let x = st.align === 'left' ? PAD : st.align === 'right' ? W - PAD - total : (W - total) / 2;
+    let x = (st.align === 'left' ? PAD : st.align === 'right' ? W - PAD - total : (W - total) / 2) + st.offX;
+    if (total) { minX = Math.min(minX, x); maxX = Math.max(maxX, x + total); }
     const y = y0 + i * lh + size * 0.92;
     runs.forEach((r, k) => { ctx.fillStyle = r.e ? st.accent : st.textColor; ctx.fillText(r.t, x, y); x += widths[k]; });
   });
   ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
   if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+  post._tb = maxX > minX ? { x: minX, y: y0, w: maxX - minX, h: blockH } : null;
 }
 function drawOverlay(ctx, st) {
   const a = st.overlay; if (a <= 0) return;
@@ -489,7 +497,14 @@ async function renderNow() {
   });
   if (modal.p >= 0) {
     const p = posts[modal.p], sl = p && p.slides[modal.s];
-    if (sl) drawSlide($('mCanvas').getContext('2d'), sl, p, modal.s === 0);
+    if (sl) {
+      const mctx = $('mCanvas').getContext('2d');
+      drawSlide(mctx, sl, p, modal.s === 0);
+      if (modal.mode === 'text' && modal.s === 0 && p._tb) {
+        const b = p._tb; mctx.save(); mctx.setLineDash([14, 10]); mctx.lineWidth = 4; mctx.strokeStyle = '#4a9eff';
+        mctx.strokeRect(b.x - 20, b.y - 16, b.w + 40, b.h + 24); mctx.restore();
+      }
+    }
   }
   scheduleSave();
 }
@@ -521,7 +536,7 @@ async function decodeFiles(files) {
 async function addPosts(files) {
   const imgs = await decodeFiles(files);
   if (!imgs.length) return;
-  imgs.forEach((img, i) => posts.push({ id: uid(), day: curDay, order: Date.now() + i, done: false, coverText: '', caption: '', capImgs: [], st: { ...lastStyle }, open: false, slides: [makeSlide(img)], active: 0 }));
+  imgs.forEach((img, i) => posts.push({ id: uid(), day: curDay, order: Date.now() + i, done: false, coverText: '', caption: '', capImgs: [], st: { ...STYLE_DEFAULT, ...lastStyle, offX: 0, offY: 0 }, open: false, slides: [makeSlide(img)], active: 0 }));
   selIdx = posts.length - imgs.length;
   rebuild();
   toast(`${DAYS[curDay]}요일에 게시물 ${imgs.length}개 추가됨`);
@@ -727,8 +742,14 @@ function rebuild() {
 const modal = { p: -1, s: -1 };
 let drag = null;
 function curSlide() { return posts[modal.p]?.slides[modal.s]; }
-function openEditor(pi, si) {
+function paintMode() { [...$('mMode').children].forEach(b => b.classList.toggle('on', b.dataset.m === modal.mode)); render(); }
+$('mMode').onclick = e => { const b = e.target.closest('button'); if (!b) return; modal.mode = b.dataset.m; paintMode(); };
+function openEditor(pi, si, mode) {
   modal.p = pi; modal.s = si; const sl = curSlide(); if (!sl) return;
+  const hasText = si === 0 && posts[pi].coverText.trim();
+  $('mModeWrap').hidden = !hasText;
+  modal.mode = hasText ? (mode || modal.mode || 'photo') : 'photo';
+  [...$('mMode').children].forEach(b => b.classList.toggle('on', b.dataset.m === modal.mode));
   $('mTitle').textContent = `${pi + 1}번 게시물 · ${si + 1}장${si === 0 ? ' (표지)' : ''}`;
   $('mZoom').value = sl.zoom; $('mZoomOut').textContent = Math.round(sl.zoom * 100) + '%';
   $('mCoverWrap').hidden = si !== 0; $('mCover').value = posts[pi].coverText;
@@ -741,6 +762,12 @@ mc.addEventListener('pointermove', e => {
   const sl = curSlide(); if (!drag || !sl) return;
   const r = imgRect(sl), k = W / mc.clientWidth;
   const dx = (e.clientX - drag.x) * k, dy = (e.clientY - drag.y) * k; drag = { x: e.clientX, y: e.clientY };
+  if (modal.mode === 'text' && modal.s === 0) {
+    const st = posts[modal.p].st;
+    st.offX = Math.round(Math.max(-500, Math.min(500, (st.offX || 0) + dx)));
+    st.offY = Math.round(Math.max(-1000, Math.min(1000, (st.offY || 0) + dy)));
+    render(); return;
+  }
   if (r.maxX > 0) sl.panX = Math.max(-1, Math.min(1, sl.panX - dx / r.maxX));
   if (r.maxY > 0) sl.panY = Math.max(-1, Math.min(1, sl.panY - dy / r.maxY));
   render();
@@ -749,8 +776,11 @@ mc.addEventListener('pointerup', () => drag = null);
 mc.addEventListener('wheel', e => { e.preventDefault(); const sl = curSlide(); if (sl) setZoom(sl.zoom - e.deltaY * 0.001); }, { passive: false });
 function setZoom(z) { const sl = curSlide(); sl.zoom = Math.max(1, Math.min(2.5, z)); $('mZoom').value = sl.zoom; $('mZoomOut').textContent = Math.round(sl.zoom * 100) + '%'; render(); }
 $('mZoom').oninput = e => setZoom(+e.target.value);
-$('mCover').oninput = e => { posts[modal.p].coverText = e.target.value; syncSidebar(); render(); };
-$('mReset').onclick = () => { const sl = curSlide(); sl.panX = sl.panY = 0; setZoom(1); };
+$('mCover').oninput = e => { posts[modal.p].coverText = e.target.value; $('mModeWrap').hidden = !e.target.value.trim(); syncSidebar(); render(); };
+$('mReset').onclick = () => {
+  if (modal.mode === 'text' && modal.s === 0) { const st = posts[modal.p].st; st.offX = st.offY = 0; render(); return; }
+  const sl = curSlide(); sl.panX = sl.panY = 0; setZoom(1);
+};
 function moveSlide(d) {
   const p = posts[modal.p], i = modal.s, j = i + d;
   if (j < 0 || j >= p.slides.length) return;
@@ -1009,6 +1039,9 @@ function fmt(key, v) {
   if (key === 'overlay') return Math.round(v * 100) + '%';
   if (key === 'logoSize') return v + '%';
   if (key === 'fontSize') return v + 'px';
+  if (key === 'boxW') return v + '%';
+  if (key === 'lineH') return (+v).toFixed(2);
+  if (key === 'offX' || key === 'offY') return (v > 0 ? '+' : '') + v;
   return String(v);
 }
 const FONT_OPTIONS = ['한국어', '日本語', 'English'].map(g =>
@@ -1022,13 +1055,25 @@ function buildTextPanel(p, pi) {
     <div class="lbl">폰트</div>
     <select data-st="font">${FONT_OPTIONS}</select>
     <div class="two">
-      <div><div class="lbl">크기 <span data-o="fontSize"></span></div><input type="range" min="48" max="180" step="2" data-st="fontSize"></div>
+      <div><div class="lbl">크기 <span data-o="fontSize"></span></div><input type="range" min="32" max="240" step="2" data-st="fontSize"></div>
       <div><div class="lbl">자간 <span data-o="tracking"></span></div><input type="range" min="-10" max="10" step="1" data-st="tracking"></div>
     </div>
-    <div class="lbl">위치</div>
+    <div class="two">
+      <div><div class="lbl">줄 간격 <span data-o="lineH"></span></div><input type="range" min="0.9" max="2" step="0.02" data-st="lineH"></div>
+      <div><div class="lbl">글상자 너비 <span data-o="boxW"></span></div><input type="range" min="40" max="100" step="1" data-st="boxW"></div>
+    </div>
+    <div class="lbl">기본 위치</div>
     <div class="seg" data-sk="textPos"><button data-val="top">위</button><button data-val="center">가운데</button><button data-val="bottom">아래</button></div>
     <div class="lbl">정렬</div>
     <div class="seg" data-sk="align"><button data-val="left">왼쪽</button><button data-val="center">가운데</button><button data-val="right">오른쪽</button></div>
+    <div class="two">
+      <div><div class="lbl">좌우 이동 <span data-o="offX"></span></div><input type="range" min="-500" max="500" step="2" data-st="offX"></div>
+      <div><div class="lbl">위아래 이동 <span data-o="offY"></span></div><input type="range" min="-1000" max="1000" step="2" data-st="offY"></div>
+    </div>
+    <div class="two" style="margin-top:8px">
+      <button class="btn movetxt" style="height:38px;font-size:13px">✋ 드래그로 옮기기</button>
+      <button class="btn resetpos" style="height:38px;font-size:13px;margin-top:0">위치 초기화</button>
+    </div>
     <div class="two">
       <div><div class="lbl">글자색</div><input type="color" data-st="textColor"></div>
       <div><div class="lbl">강조색</div><input type="color" data-st="accent"></div>
@@ -1057,8 +1102,14 @@ function buildTextPanel(p, pi) {
     p.st[seg.dataset.sk] = b.dataset.val; syncSeg(); saveStyle(p.st); render();
   }));
   syncSeg();
+  el.querySelector('.movetxt').onclick = () => { p.active = 0; openEditor(pi, 0, 'text'); };
+  el.querySelector('.resetpos').onclick = () => {
+    p.st.offX = 0; p.st.offY = 0;
+    ['offX', 'offY'].forEach(k => { el.querySelector(`[data-st="${k}"]`).value = 0; el.querySelector(`[data-o="${k}"]`).textContent = fmt(k, 0); });
+    render();
+  };
   el.querySelector('.applyall').onclick = () => {
-    posts.forEach(q => { if (q !== p) q.st = { ...p.st }; });
+    posts.forEach(q => { if (q !== p) q.st = { ...p.st, offX: q.st.offX || 0, offY: q.st.offY || 0 }; });
     render(); toast('모든 게시물에 적용했어요');
   };
   el.addEventListener('click', e => e.stopPropagation());
@@ -1205,9 +1256,8 @@ function postMeta(p) {
 }
 const cloudSettings = () => { const o = { ...S }; delete o.aiToken; return { S: o, lastStyle }; };
 
-let deletingAcct = false;
 function scheduleSave() {
-  if (!user || loadingCloud || deletingAcct) return;
+  if (!user || loadingCloud) return;
   if (saving) { dirtyAgain = true; return; }
   clearTimeout(saveTimer); saveTimer = setTimeout(saveAll, 700);
 }
@@ -1408,47 +1458,6 @@ $('btnEmReset').onclick = async () => {
 $('btnLogin').onclick = () => {
   if (!db) { toast('Firebase 설정이 아직 비어 있어요 (FIREBASE_CONFIG)'); return; }
   login();
-};
-// 계정 삭제: 본인 확인 → 내 게시물·사진·닉네임·설정 삭제 → 계정 삭제
-async function reauth() {
-  const prov = (user.providerData[0] || {}).providerId;
-  if (prov === 'google.com') {
-    await user.reauthenticateWithPopup(new firebase.auth.GoogleAuthProvider());
-  } else {
-    const pw = prompt('본인 확인을 위해 비밀번호를 다시 입력해주세요');
-    if (pw === null) throw { code: 'cancel' };
-    await user.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(user.email, pw));
-  }
-}
-async function deleteWhere(name) {
-  const snap = await col(name).where('owner', '==', user.uid).get();
-  const docs = snap.docs;
-  for (let i = 0; i < docs.length; i += 20) await Promise.all(docs.slice(i, i + 20).map(d => d.ref.delete()));
-  return docs.length;
-}
-$('btnDelAcct').onclick = async () => {
-  if (!user) return;
-  if (!confirm('계정을 삭제하면 내 게시물·사진·닉네임·설정이 모두 지워지고 되돌릴 수 없어요.\n계속할까요?')) return;
-  if ((prompt('확인을 위해 "삭제"라고 입력해주세요') || '').trim() !== '삭제') { toast('계정 삭제를 취소했어요'); return; }
-  try { await reauth(); }
-  catch (e) { if (e.code !== 'cancel' && e.code !== 'auth/popup-closed-by-user') authErr(e); return; }
-  deletingAcct = true; clearTimeout(saveTimer);
-  if (unsubPosts) unsubPosts(); if (unsubProfiles) unsubProfiles(); unsubPosts = unsubProfiles = null;
-  try {
-    toast('삭제하는 중…');
-    await deleteWhere('images');
-    await deleteWhere('posts');
-    await Promise.all([
-      col('profiles').doc(user.uid).delete(),
-      userCol('meta').doc('settings').delete(),
-      userCol('meta').doc('logo').delete(),
-    ]);
-    await user.delete();
-    try { localStorage.removeItem('cnm_logo'); } catch (e) {}
-    toast('계정을 삭제했어요');
-  } catch (e) {
-    console.error(e); toast('삭제 중 오류: ' + (e.code || e.message));
-  } finally { deletingAcct = false; }
 };
 $('btnLogout').onclick = async () => {
   if (!confirm('로그아웃할까요? 이 기기 화면에서만 지워지고, 저장된 작업은 그대로 남아요.')) return;
