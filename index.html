@@ -148,6 +148,11 @@ details.more summary::-webkit-details-marker{display:none}
 .glogo{font-size:26px;font-weight:800;margin-bottom:10px;letter-spacing:-.02em}
 .gsub{font-size:13px;color:var(--muted);margin-bottom:26px;line-height:1.6}
 .gor{text-align:center;color:var(--muted);font-size:12px;margin:18px 0 10px}
+.sizectl{display:grid;grid-template-columns:38px 1fr 38px;gap:6px;align-items:center}
+.sizectl button{height:38px;border-radius:10px;border:1px solid var(--line2);background:transparent;color:var(--text);font:inherit;font-size:18px;cursor:pointer}
+.sizectl button:hover{background:#161616}
+.sizectl input{width:100%;height:38px;text-align:center;background:#050505;border:1px solid var(--line2);border-radius:10px;color:var(--text);font:inherit;font-size:14px;font-weight:700;-moz-appearance:textfield}
+.sizectl input::-webkit-inner-spin-button,.sizectl input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 .pstatus{display:flex;align-items:center;justify-content:center;gap:6px;padding:12px;color:#5f5f5f;font-size:12px;letter-spacing:.12em;border-top:1px solid var(--line)}
 
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
@@ -155,7 +160,7 @@ details.more summary::-webkit-details-marker{display:none}
 .mbox{background:#0b0b0b;border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;gap:18px;max-height:96vh;max-width:980px;width:100%;overflow:auto}
 .mbox canvas{height:min(80vh,720px);width:auto;aspect-ratio:4/5;border-radius:8px;cursor:grab;touch-action:none;max-width:100%;flex-shrink:0;background:#111}
 .mbox canvas:active{cursor:grabbing}
-.mside{flex:1;min-width:220px;display:flex;flex-direction:column}
+.mside{flex:1;min-width:240px;display:flex;flex-direction:column;overflow-y:auto;max-height:calc(96vh - 32px);padding-right:4px}
 .mside h4{margin:2px 0 4px;font-size:15px}
 .mside .grow{flex:1}
 @media(max-width:760px){.mbox{flex-direction:column}.mbox canvas{height:auto;width:100%}}
@@ -284,17 +289,35 @@ details.more summary::-webkit-details-marker{display:none}
       <div class="lbl">확대 <span id="mZoomOut"></span></div>
       <input type="range" id="mZoom" min="1" max="2.5" step="0.01">
       <div id="mCoverWrap" hidden>
-        <div class="lbl">표지 문구</div>
-        <textarea id="mCover" style="min-height:80px"></textarea>
+        <div class="lbl">표지 문구 <span>*별표* = 강조색</span></div>
+        <textarea id="mCover" style="min-height:80px" placeholder="결혼 전에 꼭&#10;*이것*만은 확인하세요"></textarea>
+        <div class="lbl">폰트</div>
+        <select id="mFont"></select>
+        <div class="two">
+          <div><div class="lbl">크기 (px)</div><div class="sizectl stp" data-k="fontSize" data-step="1" data-min="12" data-max="400"><button>−</button><input type="number"><button>+</button></div></div>
+          <div><div class="lbl">자간</div><div class="sizectl stp" data-k="tracking" data-step="1" data-min="-20" data-max="40"><button>−</button><input type="number"><button>+</button></div></div>
+          <div><div class="lbl">줄 간격</div><div class="sizectl stp" data-k="lineH" data-step="0.02" data-min="0.8" data-max="2.5" data-dec="2"><button>−</button><input type="number" step="0.01"><button>+</button></div></div>
+          <div><div class="lbl">글상자 너비 (%)</div><div class="sizectl stp" data-k="boxW" data-step="1" data-min="30" data-max="100"><button>−</button><input type="number"><button>+</button></div></div>
+        </div>
+        <div class="lbl">정렬</div>
+        <div class="seg" id="mAlign"><button data-val="left">왼쪽</button><button data-val="center">가운데</button><button data-val="right">오른쪽</button></div>
+        <div class="two">
+          <div><div class="lbl">글자색</div><input type="color" id="mColor"></div>
+          <div><div class="lbl">강조색</div><input type="color" id="mAccent"></div>
+          <div><div class="lbl">배경 어둡게 (%)</div><div class="sizectl stp" data-k="overlay" data-step="0.05" data-min="0" data-max="0.95" data-scale="100"><button>−</button><input type="number"><button>+</button></div></div>
+          <div><div class="lbl">&nbsp;</div><label class="check" style="margin-top:8px"><input type="checkbox" id="mShadow"> 글자 그림자</label></div>
+        </div>
+        <button class="btn" id="mApplyAll" style="margin-top:12px;height:38px;font-size:13px">이 스타일을 모든 게시물에 적용</button>
       </div>
       <div class="grow"></div>
       <div class="two" style="margin-top:14px">
-        <button class="btn" id="mPrev">◀ 앞으로</button>
-        <button class="btn" id="mNext" style="margin-top:0">뒤로 ▶</button>
+        <button class="btn" id="mDown">사진 다운로드</button>
+        <button class="btn" id="mSwap" style="margin-top:0">사진 교체</button>
       </div>
-      <button class="btn" id="mReset" style="margin-top:8px">위치 초기화</button>
-      <button class="btn" id="mDown">이 장만 다운로드</button>
-      <button class="btn" id="mDel" style="color:var(--danger)">이 장 삭제</button>
+      <div class="two" style="margin-top:8px">
+        <button class="btn" id="mUndo" disabled>↶ 되돌리기</button>
+        <button class="btn" id="mReset" style="margin-top:0">위치 초기화</button>
+      </div>
       <button class="btn primary" id="mClose">닫기</button>
     </div>
   </div>
@@ -618,7 +641,7 @@ function buildCard(p, pi, ro) {
   el.className = 'post' + (!ro && pi === selIdx ? ' sel' : '') + (p.done ? ' isdone' : '') + (ro ? ' ro' : '');
   const tools = ro
     ? `<button title="이 게시물 다운로드">${IC.down}</button>`
-    : `<button class="aa${p.open ? ' on' : ''}" title="텍스트 편집">Aa</button><button title="이미지 교체 (Gemini 편집본)">${IC.swap}</button><button class="${p.done ? 'ok' : ''}" title="업로드 완료 표시">${IC.check}</button><button title="이 게시물 다운로드">${IC.down}</button><button title="게시물 삭제">${IC.trash}</button>`;
+    : `<button title="이미지 교체 (Gemini 편집본)">${IC.swap}</button><button class="${p.done ? 'ok' : ''}" title="업로드 완료 표시">${IC.check}</button><button title="이 게시물 다운로드">${IC.down}</button><button title="게시물 삭제">${IC.trash}</button>`;
   el.innerHTML = `
     <div class="pimg"><div class="ptools">${tools}</div>
       <div class="pnum">${p.active + 1} / ${p.slides.length}</div></div>
@@ -652,7 +675,7 @@ function buildCard(p, pi, ro) {
   }
 
   // ----- 내 게시물 전용 -----
-  const [bText, bSwap, bDone, bDown, bDel] = btns;
+  const [bSwap, bDone, bDown, bDel] = btns;
   const daySel = document.createElement('select'); daySel.className = 'daysel'; daySel.title = '요일 옮기기';
   daySel.innerHTML = DAYS.map((d, i) => `<option value="${i}" ${i === p.day ? 'selected' : ''}>${d}요일</option>`).join('');
   daySel.onclick = e => e.stopPropagation();
@@ -660,7 +683,6 @@ function buildCard(p, pi, ro) {
   pimg.appendChild(daySel);
   bDone.onclick = e => { e.stopPropagation(); p.done = !p.done; rebuild(); };
   bSwap.onclick = e => { e.stopPropagation(); swapTarget = { pi, si: p.active }; $('fileSwap').click(); };
-  bText.onclick = e => { e.stopPropagation(); p.open = !p.open; selIdx = pi; rebuild(); };
   bDown.onclick = e => { e.stopPropagation(); exportZip([p], `post_${DAYS[p.day]}_${pad(pi + 1)}.zip`); };
   bDel.onclick = e => { e.stopPropagation(); if (confirm('이 게시물을 삭제할까요?')) removePost(pi); };
   // 큰 이미지 위에 놓으면 = 교체, 카드의 다른 곳에 놓으면 = 장 추가
@@ -668,7 +690,6 @@ function buildCard(p, pi, ro) {
   pimg.addEventListener('dragleave', () => { pimg.style.outline = ''; });
   pimg.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); pimg.style.outline = ''; el.classList.remove('drop'); $('main').classList.remove('dropping'); swapImage(pi, p.active, e.dataTransfer.files); });
   pimg.onclick = () => { select(pi); openEditor(pi, p.active); };
-  if (p.open) pimg.after(buildTextPanel(p, pi));
   const cur = p.slides[p.active];
   if (isCapIdx(p.active)) {
     const n = document.createElement('div'); n.className = 'capnote';
@@ -742,6 +763,84 @@ function rebuild() {
 const modal = { p: -1, s: -1 };
 let drag = null;
 function curSlide() { return posts[modal.p]?.slides[modal.s]; }
+// 되돌리기: 편집 화면에서 한 동작 단위로 이전 상태 저장
+let undoStack = [];
+function postState() {
+  const p = posts[modal.p];
+  return JSON.stringify({ coverText: p.coverText, st: p.st, slides: p.slides.map(sl => [sl.panX, sl.panY, sl.zoom]) });
+}
+function snap() {
+  if (modal.p < 0) return;
+  const cur = postState();
+  if (undoStack[undoStack.length - 1] !== cur) { undoStack.push(cur); if (undoStack.length > 50) undoStack.shift(); }
+  $('mUndo').disabled = false;
+}
+let snapTimer = 0;   // 연속 입력(타이핑·휠)은 한 동작으로 묶음
+function snapOnce() { if (!snapTimer) snap(); clearTimeout(snapTimer); snapTimer = setTimeout(() => { snapTimer = 0; }, 700); }
+function undo() {
+  if (modal.p < 0 || !undoStack.length) return;
+  const p = posts[modal.p], st = JSON.parse(undoStack.pop());
+  p.coverText = st.coverText; p.st = st.st;
+  st.slides.forEach((v, i) => { const sl = p.slides[i]; if (sl) [sl.panX, sl.panY, sl.zoom] = v; });
+  const sl = curSlide();
+  paintTextCtl();
+  $('mZoom').value = sl.zoom; $('mZoomOut').textContent = Math.round(sl.zoom * 100) + '%';
+  $('mUndo').disabled = !undoStack.length;
+  syncSidebar(); render();
+}
+$('mUndo').onclick = undo;
+document.addEventListener('keydown', e => {
+  if (modal.p < 0 || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z' || e.shiftKey) return;
+  if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+  e.preventDefault(); undo();
+});
+// 편집 화면의 표지 문구 스타일 조절 (− / + / 직접 입력)
+const mStyle = () => posts[modal.p].st;
+function setStyle(k, v) { const st = mStyle(); st[k] = v; saveStyle(st); render(); }
+document.querySelectorAll('#mCoverWrap .stp').forEach(el => {
+  const k = el.dataset.k, step = +el.dataset.step, min = +el.dataset.min, max = +el.dataset.max;
+  const scale = +(el.dataset.scale || 1), dec = +(el.dataset.dec || 0);
+  const [dn, inp, up] = el.children;
+  const show = v => { inp.value = (v * scale).toFixed(dec); };
+  const set = v => { v = Math.max(min, Math.min(max, Math.round(v / step) * step)); v = +v.toFixed(4); setStyle(k, v); show(v); };
+  el._show = () => show(mStyle()[k] ?? STYLE_DEFAULT[k]);
+  inp.addEventListener('change', () => { snap(); set(+inp.value / scale); });
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') { snap(); set(+inp.value / scale); } });
+  [[dn, -1], [up, 1]].forEach(([b, d]) => {
+    let hold = 0;
+    const tick = () => set((mStyle()[k] ?? STYLE_DEFAULT[k]) + d * step);
+    b.addEventListener('pointerdown', () => { snap(); tick(); clearTimeout(hold); hold = setTimeout(() => { hold = setInterval(tick, 70); }, 400); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, () => { clearTimeout(hold); clearInterval(hold); }));
+  });
+});
+$('mFont').addEventListener('change', () => { snap(); setStyle('font', $('mFont').value); });
+$('mAlign').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; snap(); setStyle('align', b.dataset.val); paintTextCtl(); });
+$('mColor').addEventListener('input', () => { snapOnce(); setStyle('textColor', $('mColor').value); });
+$('mAccent').addEventListener('input', () => { snapOnce(); setStyle('accent', $('mAccent').value); });
+$('mShadow').addEventListener('change', () => { snap(); setStyle('shadow', $('mShadow').checked); });
+$('mApplyAll').onclick = () => {
+  const src = mStyle();
+  posts.forEach(q => { if (q !== posts[modal.p]) q.st = { ...src, offX: q.st.offX || 0, offY: q.st.offY || 0, textPos: q.st.textPos || 'bottom' }; });
+  render(); toast('모든 게시물에 적용했어요');
+};
+function paintTextCtl() {
+  if (modal.p < 0) return;
+  const st = { ...STYLE_DEFAULT, ...mStyle() };
+  if (!$('mFont').options.length) $('mFont').innerHTML = FONT_OPTIONS;
+  $('mCover').value = posts[modal.p].coverText;
+  $('mFont').value = st.font;
+  [...$('mAlign').children].forEach(b => b.classList.toggle('on', b.dataset.val === st.align));
+  $('mColor').value = st.textColor; $('mAccent').value = st.accent; $('mShadow').checked = !!st.shadow;
+  document.querySelectorAll('#mCoverWrap .stp').forEach(el => el._show());
+}
+$('mDown').onclick = () => {
+  const sl = curSlide(); if (!sl) return;
+  sl.canvas.toBlob(b => saveBlob(b, `${DAYS[posts[modal.p].day]}_${pad(modal.p + 1)}_${pad(modal.s + 1)}.jpg`), 'image/jpeg', 0.95);
+};
+$('mSwap').onclick = () => {
+  if (isCapIdx(modal.s)) { toast('캡션 캡처 장은 교체할 수 없어요'); return; }
+  swapTarget = { pi: modal.p, si: modal.s }; $('fileSwap').click();
+};
 function paintMode() { [...$('mMode').children].forEach(b => b.classList.toggle('on', b.dataset.m === modal.mode)); render(); }
 $('mMode').onclick = e => { const b = e.target.closest('button'); if (!b) return; modal.mode = b.dataset.m; paintMode(); };
 function openEditor(pi, si, mode) {
@@ -752,12 +851,13 @@ function openEditor(pi, si, mode) {
   [...$('mMode').children].forEach(b => b.classList.toggle('on', b.dataset.m === modal.mode));
   $('mTitle').textContent = `${pi + 1}번 게시물 · ${si + 1}장${si === 0 ? ' (표지)' : ''}`;
   $('mZoom').value = sl.zoom; $('mZoomOut').textContent = Math.round(sl.zoom * 100) + '%';
-  $('mCoverWrap').hidden = si !== 0; $('mCover').value = posts[pi].coverText;
+  $('mCoverWrap').hidden = si !== 0; paintTextCtl();
+  if (modal.openedFor !== posts[pi].id) { undoStack = []; $('mUndo').disabled = true; modal.openedFor = posts[pi].id; }
   $('modal').classList.add('open'); render();
 }
-function closeEditor() { modal.p = modal.s = -1; $('modal').classList.remove('open'); rebuild(); }
+function closeEditor() { modal.p = modal.s = -1; modal.openedFor = null; undoStack = []; $('modal').classList.remove('open'); rebuild(); }
 const mc = $('mCanvas');
-mc.addEventListener('pointerdown', e => { if (!curSlide()) return; drag = { x: e.clientX, y: e.clientY }; mc.setPointerCapture(e.pointerId); });
+mc.addEventListener('pointerdown', e => { if (!curSlide()) return; snap(); drag = { x: e.clientX, y: e.clientY }; mc.setPointerCapture(e.pointerId); });
 mc.addEventListener('pointermove', e => {
   const sl = curSlide(); if (!drag || !sl) return;
   const r = imgRect(sl), k = W / mc.clientWidth;
@@ -773,24 +873,14 @@ mc.addEventListener('pointermove', e => {
   render();
 });
 mc.addEventListener('pointerup', () => drag = null);
-mc.addEventListener('wheel', e => { e.preventDefault(); const sl = curSlide(); if (sl) setZoom(sl.zoom - e.deltaY * 0.001); }, { passive: false });
+mc.addEventListener('wheel', e => { e.preventDefault(); const sl = curSlide(); if (sl) snapOnce(); if (sl) setZoom(sl.zoom - e.deltaY * 0.001); }, { passive: false });
 function setZoom(z) { const sl = curSlide(); sl.zoom = Math.max(1, Math.min(2.5, z)); $('mZoom').value = sl.zoom; $('mZoomOut').textContent = Math.round(sl.zoom * 100) + '%'; render(); }
-$('mZoom').oninput = e => setZoom(+e.target.value);
-$('mCover').oninput = e => { posts[modal.p].coverText = e.target.value; $('mModeWrap').hidden = !e.target.value.trim(); syncSidebar(); render(); };
-$('mReset').onclick = () => {
-  if (modal.mode === 'text' && modal.s === 0) { const st = posts[modal.p].st; st.offX = st.offY = 0; render(); return; }
+$('mZoom').oninput = e => { snapOnce(); setZoom(+e.target.value); };
+$('mCover').oninput = e => { snapOnce(); posts[modal.p].coverText = e.target.value; $('mModeWrap').hidden = !e.target.value.trim(); syncSidebar(); render(); };
+$('mReset').onclick = () => { snap();
+  if (modal.mode === 'text' && modal.s === 0) { const st = posts[modal.p].st; st.offX = st.offY = 0; st.textPos = 'bottom'; render(); return; }
   const sl = curSlide(); sl.panX = sl.panY = 0; setZoom(1);
 };
-function moveSlide(d) {
-  const p = posts[modal.p], i = modal.s, j = i + d;
-  if (j < 0 || j >= p.slides.length) return;
-  [p.slides[i], p.slides[j]] = [p.slides[j], p.slides[i]]; p.active = j;
-  openEditor(modal.p, j);
-}
-$('mPrev').onclick = () => moveSlide(-1);
-$('mNext').onclick = () => moveSlide(1);
-$('mDel').onclick = () => { const { p, s } = modal; $('modal').classList.remove('open'); modal.p = modal.s = -1; removeSlide(p, s); };
-$('mDown').onclick = () => { const sl = curSlide(); const n = `post${pad(modal.p + 1)}_${pad(modal.s + 1)}.jpg`; sl.canvas.toBlob(b => saveBlob(b, n), 'image/jpeg', 0.95); };
 $('mClose').onclick = closeEditor;
 $('modal').onclick = e => { if (e.target === $('modal')) closeEditor(); };
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && modal.p >= 0) closeEditor(); });
@@ -1046,75 +1136,6 @@ function fmt(key, v) {
 }
 const FONT_OPTIONS = ['한국어', '日本語', 'English'].map(g =>
   `<optgroup label="${g}">` + FONTS.filter(f => f.g === g).map(f => `<option value="${f.id}">${f.label}</option>`).join('') + '</optgroup>').join('');
-// 게시물 카드 안의 텍스트 편집 패널
-function buildTextPanel(p, pi) {
-  const el = document.createElement('div'); el.className = 'tpanel';
-  el.innerHTML = `
-    <div class="lbl">표지 문구 <span>*별표* = 강조색</span></div>
-    <textarea data-k="coverText" placeholder="결혼 전에 꼭&#10;*이것*만은 확인하세요"></textarea>
-    <div class="lbl">폰트</div>
-    <select data-st="font">${FONT_OPTIONS}</select>
-    <div class="two">
-      <div><div class="lbl">크기 <span data-o="fontSize"></span></div><input type="range" min="32" max="240" step="2" data-st="fontSize"></div>
-      <div><div class="lbl">자간 <span data-o="tracking"></span></div><input type="range" min="-10" max="10" step="1" data-st="tracking"></div>
-    </div>
-    <div class="two">
-      <div><div class="lbl">줄 간격 <span data-o="lineH"></span></div><input type="range" min="0.9" max="2" step="0.02" data-st="lineH"></div>
-      <div><div class="lbl">글상자 너비 <span data-o="boxW"></span></div><input type="range" min="40" max="100" step="1" data-st="boxW"></div>
-    </div>
-    <div class="lbl">기본 위치</div>
-    <div class="seg" data-sk="textPos"><button data-val="top">위</button><button data-val="center">가운데</button><button data-val="bottom">아래</button></div>
-    <div class="lbl">정렬</div>
-    <div class="seg" data-sk="align"><button data-val="left">왼쪽</button><button data-val="center">가운데</button><button data-val="right">오른쪽</button></div>
-    <div class="two">
-      <div><div class="lbl">좌우 이동 <span data-o="offX"></span></div><input type="range" min="-500" max="500" step="2" data-st="offX"></div>
-      <div><div class="lbl">위아래 이동 <span data-o="offY"></span></div><input type="range" min="-1000" max="1000" step="2" data-st="offY"></div>
-    </div>
-    <div class="two" style="margin-top:8px">
-      <button class="btn movetxt" style="height:38px;font-size:13px">✋ 드래그로 옮기기</button>
-      <button class="btn resetpos" style="height:38px;font-size:13px;margin-top:0">위치 초기화</button>
-    </div>
-    <div class="two">
-      <div><div class="lbl">글자색</div><input type="color" data-st="textColor"></div>
-      <div><div class="lbl">강조색</div><input type="color" data-st="accent"></div>
-    </div>
-    <div class="lbl">배경 어둡게 <span data-o="overlay"></span></div>
-    <input type="range" min="0" max="0.95" step="0.05" data-st="overlay">
-    <label class="check"><input type="checkbox" data-st="shadow"> 글자 그림자</label>
-    <button class="btn applyall">이 스타일을 모든 게시물에 적용</button>`;
-  const ta = el.querySelector('textarea');
-  ta.value = p.coverText;
-  ta.addEventListener('input', () => { p.coverText = ta.value; render(); });
-  el.querySelectorAll('[data-st]').forEach(inp => {
-    const k = inp.dataset.st, out = el.querySelector(`[data-o="${k}"]`);
-    if (inp.type === 'checkbox') inp.checked = !!p.st[k]; else inp.value = p.st[k];
-    if (out) out.textContent = fmt(k, p.st[k]);
-    inp.addEventListener(inp.tagName === 'SELECT' ? 'change' : 'input', () => {
-      p.st[k] = inp.type === 'checkbox' ? inp.checked : inp.type === 'range' ? +inp.value : inp.value;
-      if (out) out.textContent = fmt(k, p.st[k]);
-      saveStyle(p.st); render();
-    });
-  });
-  const syncSeg = () => el.querySelectorAll('.seg[data-sk]').forEach(seg =>
-    [...seg.children].forEach(b => b.classList.toggle('on', p.st[seg.dataset.sk] === b.dataset.val)));
-  el.querySelectorAll('.seg[data-sk]').forEach(seg => seg.addEventListener('click', e => {
-    const b = e.target.closest('button'); if (!b) return;
-    p.st[seg.dataset.sk] = b.dataset.val; syncSeg(); saveStyle(p.st); render();
-  }));
-  syncSeg();
-  el.querySelector('.movetxt').onclick = () => { p.active = 0; openEditor(pi, 0, 'text'); };
-  el.querySelector('.resetpos').onclick = () => {
-    p.st.offX = 0; p.st.offY = 0;
-    ['offX', 'offY'].forEach(k => { el.querySelector(`[data-st="${k}"]`).value = 0; el.querySelector(`[data-o="${k}"]`).textContent = fmt(k, 0); });
-    render();
-  };
-  el.querySelector('.applyall').onclick = () => {
-    posts.forEach(q => { if (q !== p) q.st = { ...p.st, offX: q.st.offX || 0, offY: q.st.offY || 0 }; });
-    render(); toast('모든 게시물에 적용했어요');
-  };
-  el.addEventListener('click', e => e.stopPropagation());
-  return el;
-}
 function syncControls() {
   document.querySelectorAll('[data-bind]').forEach(el => {
     const k = el.dataset.bind;
