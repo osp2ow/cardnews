@@ -153,17 +153,23 @@ details.more summary::-webkit-details-marker{display:none}
 .sizectl button:hover{background:#161616}
 .sizectl input{width:100%;height:38px;text-align:center;background:#050505;border:1px solid var(--line2);border-radius:10px;color:var(--text);font:inherit;font-size:14px;font-weight:700;-moz-appearance:textfield}
 .sizectl input::-webkit-inner-spin-button,.sizectl input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.textbody{animation:slideDown .18s ease-out;border-top:1px solid var(--line);margin-top:12px;padding-top:2px}
+@keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+#mTextToggle.on{background:#e9e9e9;color:#000;border-color:#e9e9e9}
 .pstatus{display:flex;align-items:center;justify-content:center;gap:6px;padding:12px;color:#5f5f5f;font-size:12px;letter-spacing:.12em;border-top:1px solid var(--line)}
 
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
 .modal.open{display:flex}
 .mbox{background:#0b0b0b;border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;gap:18px;max-height:96vh;max-width:980px;width:100%;overflow:auto}
-.mbox canvas{height:min(80vh,720px);width:auto;aspect-ratio:4/5;border-radius:8px;cursor:grab;touch-action:none;max-width:100%;flex-shrink:0;background:#111}
-.mbox canvas:active{cursor:grabbing}
+.mview{height:min(80vh,720px);aspect-ratio:4/5;flex-shrink:0;overflow:auto;border-radius:8px;background:#111;max-width:100%}
+.mstage{position:relative;width:calc(100% * var(--vz,1))}
+.mstage canvas{width:100%;height:auto;aspect-ratio:4/5;display:block;cursor:grab;touch-action:none}
+textarea.inline{position:absolute;margin:0;padding:0;border:0;border-radius:0;min-height:0;outline:2px dashed #4a9eff;outline-offset:8px;background:rgba(0,0,0,.28);resize:none;overflow:hidden;white-space:pre-wrap;word-break:keep-all;overflow-wrap:break-word;caret-color:#4a9eff}
+.mstage canvas:active{cursor:grabbing}
 .mside{flex:1;min-width:240px;display:flex;flex-direction:column;overflow-y:auto;max-height:calc(96vh - 32px);padding-right:4px}
 .mside h4{margin:2px 0 4px;font-size:15px}
 .mside .grow{flex:1}
-@media(max-width:760px){.mbox{flex-direction:column}.mbox canvas{height:auto;width:100%}}
+@media(max-width:760px){.mbox{flex-direction:column}.mview{height:auto;width:100%}}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#eee;color:#000;padding:10px 18px;border-radius:24px;font-size:13px;font-weight:600;opacity:0;transition:.25s;pointer-events:none;z-index:99}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
@@ -228,7 +234,6 @@ details.more summary::-webkit-details-marker{display:none}
     <input type="text" data-bind="aiUrl" placeholder="https://cardnews-ai.xxx.workers.dev">
     <div class="lbl">접속 코드</div>
     <input type="password" data-bind="aiToken">
-    <label class="check"><input type="checkbox" data-bind="capSlide"> 2번째 장 = 캡션 캡처</label>
     <label class="check"><input type="checkbox" data-bind="credit"> 캡션에 원본 출처 표기</label>
     <button class="btn" id="btnPing" style="margin-top:12px">연결 테스트</button>
     <details class="more">
@@ -279,18 +284,20 @@ details.more summary::-webkit-details-marker{display:none}
 
 <div class="modal" id="modal">
   <div class="mbox">
-    <canvas id="mCanvas" width="1080" height="1350"></canvas>
+    <div class="mview" id="mView"><div class="mstage" id="mStage"><canvas id="mCanvas" width="1080" height="1350"></canvas><textarea class="inline" id="mInline" hidden spellcheck="false"></textarea></div></div>
     <div class="mside">
       <h4 id="mTitle"></h4>
-      <div id="mModeWrap" hidden>
-        <div class="lbl">드래그로 움직일 것</div>
-        <div class="seg" id="mMode" style="grid-template-columns:1fr 1fr"><button data-m="photo">사진</button><button data-m="text">글자</button></div>
-      </div>
-      <div class="lbl">확대 <span id="mZoomOut"></span></div>
+      <div class="lbl">화면 확대 (보기용)</div>
+      <div class="sizectl"><button id="vzDn">−</button><input id="vzIn" readonly><button id="vzUp">+</button></div>
+      <div class="lbl">사진 확대 (결과물) <span id="mZoomOut"></span></div>
       <input type="range" id="mZoom" min="1" max="2.5" step="0.01">
       <div id="mCoverWrap" hidden>
+        <button class="btn" id="mTextToggle" style="margin-top:14px">Aa 글자 편집 <span id="mTextArrow">▾</span></button>
+        <div id="mTextBody" class="textbody" hidden>
         <div class="lbl">표지 문구 <span>*별표* = 강조색</span></div>
         <textarea id="mCover" style="min-height:80px" placeholder="결혼 전에 꼭&#10;*이것*만은 확인하세요"></textarea>
+        <div class="lbl">부제목</div>
+        <textarea id="mSub" style="min-height:52px" placeholder='"이스라엘판 9·11 될 뻔"'></textarea>
         <div class="lbl">폰트</div>
         <select id="mFont"></select>
         <div class="two">
@@ -298,6 +305,12 @@ details.more summary::-webkit-details-marker{display:none}
           <div><div class="lbl">자간</div><div class="sizectl stp" data-k="tracking" data-step="1" data-min="-20" data-max="40"><button>−</button><input type="number"><button>+</button></div></div>
           <div><div class="lbl">줄 간격</div><div class="sizectl stp" data-k="lineH" data-step="0.02" data-min="0.8" data-max="2.5" data-dec="2"><button>−</button><input type="number" step="0.01"><button>+</button></div></div>
           <div><div class="lbl">글상자 너비 (%)</div><div class="sizectl stp" data-k="boxW" data-step="1" data-min="30" data-max="100"><button>−</button><input type="number"><button>+</button></div></div>
+        </div>
+        <div class="two">
+          <div><div class="lbl">부제목 크기 (px)</div><div class="sizectl stp" data-k="subSize" data-step="1" data-min="12" data-max="200"><button>−</button><input type="number"><button>+</button></div></div>
+          <div><div class="lbl">제목↔부제목 간격</div><div class="sizectl stp" data-k="subGap" data-step="2" data-min="0" data-max="200"><button>−</button><input type="number"><button>+</button></div></div>
+          <div><div class="lbl">부제목 색</div><input type="color" id="mSubColor"></div>
+          <div><div class="lbl">&nbsp;</div><label class="check" style="margin-top:8px"><input type="checkbox" id="mDivider"> 아래 구분선</label></div>
         </div>
         <div class="lbl">정렬</div>
         <div class="seg" id="mAlign"><button data-val="left">왼쪽</button><button data-val="center">가운데</button><button data-val="right">오른쪽</button></div>
@@ -308,11 +321,12 @@ details.more summary::-webkit-details-marker{display:none}
           <div><div class="lbl">&nbsp;</div><label class="check" style="margin-top:8px"><input type="checkbox" id="mShadow"> 글자 그림자</label></div>
         </div>
         <button class="btn" id="mApplyAll" style="margin-top:12px;height:38px;font-size:13px">이 스타일을 모든 게시물에 적용</button>
+        </div>
       </div>
       <div class="grow"></div>
       <div class="two" style="margin-top:14px">
         <button class="btn" id="mDown">사진 다운로드</button>
-        <button class="btn" id="mSwap" style="margin-top:0">사진 교체</button>
+        <button class="btn" id="mDelImg" style="margin-top:0;color:var(--danger)">사진 삭제</button>
       </div>
       <div class="two" style="margin-top:8px">
         <button class="btn" id="mUndo" disabled>↶ 되돌리기</button>
@@ -349,7 +363,8 @@ const DEFAULTS = { lang: 'ko', logoPos: 'tl', logoSize: 16, logoAll: true, accou
 const STYLE_DEFAULT = {
   font: 'Pretendard', fontSize: 96, tracking: -3, textPos: 'bottom', align: 'center',
   textColor: '#ffffff', accent: '#ffd84a', overlay: 0.7, shadow: true,
-  offX: 0, offY: 0, lineH: 1.28, boxW: 84
+  offX: 0, offY: 0, lineH: 1.28, boxW: 84,
+  subSize: 44, subColor: '#e6e6e6', subGap: 30, divider: false
 };
 // 새 게시물은 마지막으로 편집한 스타일을 이어받음
 let lastStyle = { ...STYLE_DEFAULT };
@@ -444,32 +459,57 @@ function wrapLines(ctx, paras, maxW) {
   return lines;
 }
 function drawCoverText(ctx, post) {
-  const st = { ...STYLE_DEFAULT, ...post.st }, text = post.coverText, f = fontOf(st.font), size = st.fontSize;
+  const st = { ...STYLE_DEFAULT, ...post.st }, f = fontOf(st.font), size = st.fontSize, subSize = st.subSize;
   const boxW = W * st.boxW / 100, PAD = (W - boxW) / 2;
-  ctx.font = `${f.w} ${size}px "${f.id}"`;
-  if ('letterSpacing' in ctx) ctx.letterSpacing = (st.tracking * size / 100) + 'px';
+  const subW = st.font === 'Pretendard' ? 500 : f.w;   // 부제목은 한 단계 가볍게 (가능한 폰트만)
+  const titleFont = `${f.w} ${size}px "${f.id}"`, subFont = `${subW} ${subSize}px "${f.id}"`;
+  const hasTitle = !!post.coverText.trim(), hasSub = !!(post.subText || '').trim();
   ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
-  const lines = wrapLines(ctx, parseText(text), boxW);
-  const lh = size * st.lineH, blockH = lines.length * lh;
+  const spacing = sz => { if ('letterSpacing' in ctx) ctx.letterSpacing = (st.tracking * sz / 100) + 'px'; };
+  // 줄 나누기
+  ctx.font = titleFont; spacing(size);
+  const tLines = hasTitle ? wrapLines(ctx, parseText(post.coverText), boxW) : [];
+  ctx.font = subFont; spacing(subSize);
+  const sLines = hasSub ? wrapLines(ctx, parseText(post.subText), boxW) : [];
+  const tlh = size * st.lineH, slh = subSize * Math.max(1.2, st.lineH);
+  const tH = tLines.length * tlh, sH = sLines.length * slh;
+  const gap = hasTitle && hasSub ? st.subGap : 0;
+  const divGap = st.divider ? 34 : 0;
+  const blockH = tH + gap + sH + divGap;
   const y0 = (st.textPos === 'top' ? 190 : st.textPos === 'center' ? (H - blockH) / 2 : H - 170 - blockH) + st.offY;
   let minX = W, maxX = 0;
+  const drawLines = (lines, font, sz, lh, top, color) => {
+    ctx.font = font; spacing(sz);
+    lines.forEach((line, i) => {
+      const runs = [];
+      for (const ch of line) {
+        const last = runs[runs.length - 1];
+        if (last && last.e === ch.e) last.t += ch.c; else runs.push({ t: ch.c, e: ch.e });
+      }
+      const widths = runs.map(r => ctx.measureText(r.t).width);
+      const total = widths.reduce((a, b) => a + b, 0);
+      let x = (st.align === 'left' ? PAD : st.align === 'right' ? W - PAD - total : (W - total) / 2) + st.offX;
+      if (total) { minX = Math.min(minX, x); maxX = Math.max(maxX, x + total); }
+      const y = top + i * lh + sz * 0.92;
+      runs.forEach((r, k) => { ctx.fillStyle = r.e ? st.accent : color; ctx.fillText(r.t, x, y); x += widths[k]; });
+    });
+  };
   if (st.shadow) { ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = size * 0.25; ctx.shadowOffsetY = size * 0.04; }
-  lines.forEach((line, i) => {
-    const runs = [];
-    for (const ch of line) {
-      const last = runs[runs.length - 1];
-      if (last && last.e === ch.e) last.t += ch.c; else runs.push({ t: ch.c, e: ch.e });
-    }
-    const widths = runs.map(r => ctx.measureText(r.t).width);
-    const total = widths.reduce((a, b) => a + b, 0);
-    let x = (st.align === 'left' ? PAD : st.align === 'right' ? W - PAD - total : (W - total) / 2) + st.offX;
-    if (total) { minX = Math.min(minX, x); maxX = Math.max(maxX, x + total); }
-    const y = y0 + i * lh + size * 0.92;
-    runs.forEach((r, k) => { ctx.fillStyle = r.e ? st.accent : st.textColor; ctx.fillText(r.t, x, y); x += widths[k]; });
-  });
+  if (post._hide !== 'title') drawLines(tLines, titleFont, size, tlh, y0, st.textColor);
+  if (st.shadow) { ctx.shadowBlur = subSize * 0.3; ctx.shadowOffsetY = subSize * 0.04; }
+  if (post._hide !== 'sub') drawLines(sLines, subFont, subSize, slh, y0 + tH + gap, st.subColor);
   ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
   if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+  if (st.divider) {   // 부제목 아래 가는 구분선
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    ctx.fillRect(PAD + st.offX, y0 + tH + gap + sH + divGap - 2, boxW, 2);
+    minX = Math.min(minX, PAD + st.offX); maxX = Math.max(maxX, PAD + st.offX + boxW);
+  }
   post._tb = maxX > minX ? { x: minX, y: y0, w: maxX - minX, h: blockH } : null;
+  // 편집 화면에서 클릭·직접 입력에 쓰는 배치 정보
+  post._lay = { colX: PAD + st.offX, colW: boxW, align: st.align, tracking: st.tracking,
+    title: { top: y0, h: Math.max(tH, tlh), lh: tlh, size, font: f.id, w: f.w, color: st.textColor },
+    sub: { top: y0 + tH + (hasTitle ? st.subGap : 0), h: Math.max(sH, slh), lh: slh, size: subSize, font: f.id, w: subW, color: st.subColor, has: hasSub } };
 }
 function drawOverlay(ctx, st) {
   const a = st.overlay; if (a <= 0) return;
@@ -490,10 +530,20 @@ function drawLogo(ctx) {
 function drawSlide(ctx, sl, post, isCover) {
   ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = '#111'; ctx.fillRect(0, 0, W, H);
-  const r = imgRect(sl);
-  ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(sl.img, r.x, r.y, r.dw, r.dh);
-  if (isCover && post.coverText.trim()) { drawOverlay(ctx, post.st); drawCoverText(ctx, post); }
+  if (sl.img) {
+    const r = imgRect(sl);
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(sl.img, r.x, r.y, r.dw, r.dh);
+  } else {   // 사진이 지워진 빈 장: 안내 표시 (다운로드에서는 제외됨)
+    ctx.fillStyle = '#1b1b1b'; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 6; ctx.setLineDash([24, 18]); ctx.strokeRect(60, 60, W - 120, H - 120); ctx.setLineDash([]);
+    ctx.fillStyle = '#6a6a6a'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '300 160px Pretendard, sans-serif'; ctx.fillText('+', W / 2, H / 2 - 70);
+    ctx.font = '600 44px Pretendard, sans-serif'; ctx.fillText('사진 넣기', W / 2, H / 2 + 60);
+    ctx.font = '400 32px Pretendard, sans-serif'; ctx.fillText('클릭하거나 끌어다 놓으세요', W / 2, H / 2 + 120);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  }
+  if (isCover && (post.coverText.trim() || (post.subText || '').trim())) { drawOverlay(ctx, post.st); drawCoverText(ctx, post); }
   if (logo && (S.logoAll || isCover)) drawLogo(ctx);
 }
 
@@ -501,9 +551,9 @@ let raf = 0;
 function render() { cancelAnimationFrame(raf); raf = requestAnimationFrame(renderNow); }
 async function renderNow() {
   const all = [...posts, ...others];
-  await Promise.all(all.filter(p => p.coverText.trim()).map(p => {
-    const f = fontOf(p.st.font);
-    return document.fonts.load(`${f.w} 80px "${f.id}"`, p.coverText.replace(/\s/g, '')).catch(() => {});
+  await Promise.all(all.filter(p => p.coverText.trim() || (p.subText || '').trim()).map(p => {
+    const f = fontOf(p.st.font), txt = (p.coverText + (p.subText || '')).replace(/\s/g, '');
+    return Promise.all([document.fonts.load(`${f.w} 80px "${f.id}"`, txt), document.fonts.load(`500 40px "${f.id}"`, txt)]).catch(() => {});
   }));
   const name = S.account.trim() || 'your.account';
   all.forEach(p => {
@@ -523,9 +573,10 @@ async function renderNow() {
     if (sl) {
       const mctx = $('mCanvas').getContext('2d');
       drawSlide(mctx, sl, p, modal.s === 0);
-      if (modal.mode === 'text' && modal.s === 0 && p._tb) {
-        const b = p._tb; mctx.save(); mctx.setLineDash([14, 10]); mctx.lineWidth = 4; mctx.strokeStyle = '#4a9eff';
-        mctx.strokeRect(b.x - 20, b.y - 16, b.w + 40, b.h + 24); mctx.restore();
+      if (modal.s === 0 && p._lay && !inlineWhich && (p.coverText.trim() || (p.subText || '').trim())) {
+        const L = p._lay; mctx.save(); mctx.setLineDash([12, 10]); mctx.lineWidth = 3; mctx.strokeStyle = 'rgba(255,255,255,.45)';
+        [['title', p.coverText], ['sub', p.subText]].forEach(([k, t]) => { if ((t || '').trim()) mctx.strokeRect(L.colX - 14, L[k].top - 10, L.colW + 28, L[k].h + 20); });
+        mctx.restore();
       }
     }
   }
@@ -534,10 +585,10 @@ async function renderNow() {
 
 /* ---------- posts / cards ---------- */
 function setVersion(sl, v) {
-  sl.use = sl[v] ? v : 'orig'; sl.img = sl[sl.use];
+  sl.use = sl[v] ? v : 'orig'; sl.img = sl[sl.use] || null;
   sl.panX = sl.panY = 0; sl.zoom = 1;
 }
-const isCapIdx = i => S.capSlide && i === 1;
+const isCapIdx = () => false;   // 2번째 장 자동 캡션 지정 기능 제거
 function makeSlide(img) {
   const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
   const thumb = document.createElement('canvas'); thumb.width = 128; thumb.height = 160;
@@ -559,7 +610,7 @@ async function decodeFiles(files) {
 async function addPosts(files) {
   const imgs = await decodeFiles(files);
   if (!imgs.length) return;
-  imgs.forEach((img, i) => posts.push({ id: uid(), day: curDay, order: Date.now() + i, done: false, coverText: '', caption: '', capImgs: [], st: { ...STYLE_DEFAULT, ...lastStyle, offX: 0, offY: 0 }, open: false, slides: [makeSlide(img)], active: 0 }));
+  imgs.forEach((img, i) => posts.push({ id: uid(), day: curDay, order: Date.now() + i, done: false, coverText: '', subText: '', caption: '', capImgs: [], st: { ...STYLE_DEFAULT, ...lastStyle, offX: 0, offY: 0 }, open: false, slides: [makeSlide(img)], active: 0 }));
   selIdx = posts.length - imgs.length;
   rebuild();
   toast(`${DAYS[curDay]}요일에 게시물 ${imgs.length}개 추가됨`);
@@ -580,6 +631,10 @@ async function swapImage(pi, si, files) {
   if (isCapIdx(si)) { toast('캡션 캡처 장은 교체할 수 없어요'); return; }
   const imgs = await decodeFiles(files); if (!imgs.length) return;
   const sl = p.slides[si];
+  if (!sl.orig) {   // 빈 장 → 새 사진으로 채움
+    sl.orig = imgs[0]; sl.clean = sl.regen = null; sl.cleanManual = false;
+    setVersion(sl, 'orig'); rebuild(); toast('사진을 넣었어요'); return;
+  }
   sl.clean = imgs[0]; sl.cleanManual = true; sl.regen = null;
   setVersion(sl, 'clean'); rebuild();
   toast(`${pi + 1}번 게시물 ${si + 1}장을 교체했어요 (원본으로 되돌리기 가능)`);
@@ -663,6 +718,7 @@ function buildCard(p, pi, ro) {
       t.appendChild(x);
     }
     if (isCapIdx(si)) t.insertAdjacentHTML('beforeend', '<span class="tag">캡션</span>');
+    else if (!sl.img) t.insertAdjacentHTML('beforeend', '<span class="tag" style="background:#555">빈칸</span>');
     else if (sl.use !== 'orig') t.insertAdjacentHTML('beforeend', '<span class="tag ai">AI</span>');
     t.onclick = e => { e.stopPropagation(); p.active = si; if (ro) renderOthers(); else { selIdx = pi; rebuild(); } };
     strip.appendChild(t);
@@ -689,7 +745,18 @@ function buildCard(p, pi, ro) {
   pimg.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); el.classList.add('drop'); pimg.style.outline = '3px solid #4a9eff'; pimg.style.outlineOffset = '-3px'; });
   pimg.addEventListener('dragleave', () => { pimg.style.outline = ''; });
   pimg.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); pimg.style.outline = ''; el.classList.remove('drop'); $('main').classList.remove('dropping'); swapImage(pi, p.active, e.dataTransfer.files); });
-  pimg.onclick = () => { select(pi); openEditor(pi, p.active); };
+  pimg.onclick = e => {
+    select(pi);
+    let which = null;
+    if (p.active === 0 && p._lay && e.target.tagName === 'CANVAS') {
+      const r = e.target.getBoundingClientRect(), x = (e.clientX - r.left) * W / r.width, y = (e.clientY - r.top) * H / r.height, L = p._lay;
+      if (x > L.colX - 30 && x < L.colX + L.colW + 30) {
+        if (p.coverText.trim() && y > L.title.top - 20 && y < L.title.top + L.title.h + 12) which = 'title';
+        else if ((p.subText || '').trim() && y > L.sub.top - 12 && y < L.sub.top + L.sub.h + 20) which = 'sub';
+      }
+    }
+    openEditor(pi, p.active, which);
+  };
   const cur = p.slides[p.active];
   if (isCapIdx(p.active)) {
     const n = document.createElement('div'); n.className = 'capnote';
@@ -767,7 +834,7 @@ function curSlide() { return posts[modal.p]?.slides[modal.s]; }
 let undoStack = [];
 function postState() {
   const p = posts[modal.p];
-  return JSON.stringify({ coverText: p.coverText, st: p.st, slides: p.slides.map(sl => [sl.panX, sl.panY, sl.zoom]) });
+  return JSON.stringify({ coverText: p.coverText, subText: p.subText || '', st: p.st, slides: p.slides.map(sl => [sl.panX, sl.panY, sl.zoom]) });
 }
 function snap() {
   if (modal.p < 0) return;
@@ -779,8 +846,14 @@ let snapTimer = 0;   // 연속 입력(타이핑·휠)은 한 동작으로 묶음
 function snapOnce() { if (!snapTimer) snap(); clearTimeout(snapTimer); snapTimer = setTimeout(() => { snapTimer = 0; }, 700); }
 function undo() {
   if (modal.p < 0 || !undoStack.length) return;
-  const p = posts[modal.p], st = JSON.parse(undoStack.pop());
-  p.coverText = st.coverText; p.st = st.st;
+  const top = undoStack.pop(), p = posts[modal.p];
+  if (typeof top === 'object') {   // 사진 삭제 되돌리기
+    const sl = p.slides[top.si];
+    if (sl) { Object.assign(sl, { orig: top.orig, clean: top.clean, regen: top.regen, cleanManual: top.cleanManual }); setVersion(sl, top.use); [sl.panX, sl.panY, sl.zoom] = top.pan; }
+    $('mUndo').disabled = !undoStack.length; rebuild(); return;
+  }
+  const st = JSON.parse(top);
+  p.coverText = st.coverText; p.subText = st.subText; p.st = st.st;
   st.slides.forEach((v, i) => { const sl = p.slides[i]; if (sl) [sl.panX, sl.panY, sl.zoom] = v; });
   const sl = curSlide();
   paintTextCtl();
@@ -818,6 +891,20 @@ $('mAlign').addEventListener('click', e => { const b = e.target.closest('button'
 $('mColor').addEventListener('input', () => { snapOnce(); setStyle('textColor', $('mColor').value); });
 $('mAccent').addEventListener('input', () => { snapOnce(); setStyle('accent', $('mAccent').value); });
 $('mShadow').addEventListener('change', () => { snap(); setStyle('shadow', $('mShadow').checked); });
+$('mSubColor').addEventListener('input', () => { snapOnce(); setStyle('subColor', $('mSubColor').value); });
+$('mDivider').addEventListener('change', () => { snap(); setStyle('divider', $('mDivider').checked); });
+$('mSub').addEventListener('input', e => { snapOnce(); posts[modal.p].subText = e.target.value; render(); });
+// 글자 편집 항목은 버튼을 눌렀을 때만 펼침
+function setTextOpen(open) {
+  $('mTextBody').hidden = !open;
+  $('mTextToggle').classList.toggle('on', open);
+  $('mTextArrow').textContent = open ? '▴' : '▾';
+}
+$('mTextToggle').onclick = () => {
+  const open = $('mTextBody').hidden;
+  setTextOpen(open);
+  if (open) $('mTextBody').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+};
 $('mApplyAll').onclick = () => {
   const src = mStyle();
   posts.forEach(q => { if (q !== posts[modal.p]) q.st = { ...src, offX: q.st.offX || 0, offY: q.st.offY || 0, textPos: q.st.textPos || 'bottom' }; });
@@ -831,55 +918,154 @@ function paintTextCtl() {
   $('mFont').value = st.font;
   [...$('mAlign').children].forEach(b => b.classList.toggle('on', b.dataset.val === st.align));
   $('mColor').value = st.textColor; $('mAccent').value = st.accent; $('mShadow').checked = !!st.shadow;
+  $('mSub').value = posts[modal.p].subText || ''; $('mSubColor').value = st.subColor; $('mDivider').checked = !!st.divider;
   document.querySelectorAll('#mCoverWrap .stp').forEach(el => el._show());
 }
 $('mDown').onclick = () => {
   const sl = curSlide(); if (!sl) return;
+  if (!sl.img) { toast('사진이 없는 장이에요'); return; }
   sl.canvas.toBlob(b => saveBlob(b, `${DAYS[posts[modal.p].day]}_${pad(modal.p + 1)}_${pad(modal.s + 1)}.jpg`), 'image/jpeg', 0.95);
 };
-$('mSwap').onclick = () => {
-  if (isCapIdx(modal.s)) { toast('캡션 캡처 장은 교체할 수 없어요'); return; }
-  swapTarget = { pi: modal.p, si: modal.s }; $('fileSwap').click();
+$('mDelImg').onclick = () => {
+  const sl = curSlide(); if (!sl || !sl.orig) { toast('이미 비어 있어요'); return; }
+  undoStack.push({ img: true, si: modal.s, orig: sl.orig, clean: sl.clean, regen: sl.regen, use: sl.use, cleanManual: sl.cleanManual, pan: [sl.panX, sl.panY, sl.zoom] });
+  $('mUndo').disabled = false;
+  sl.orig = sl.clean = sl.regen = sl.img = null; sl.use = 'orig'; sl.panX = sl.panY = 0; sl.zoom = 1;
+  rebuild(); toast('사진을 지웠어요 · 화면을 눌러 새 사진을 넣을 수 있어요');
 };
-function paintMode() { [...$('mMode').children].forEach(b => b.classList.toggle('on', b.dataset.m === modal.mode)); render(); }
-$('mMode').onclick = e => { const b = e.target.closest('button'); if (!b) return; modal.mode = b.dataset.m; paintMode(); };
-function openEditor(pi, si, mode) {
+function pickForBlank() { swapTarget = { pi: modal.p, si: modal.s }; $('fileSwap').click(); }
+$('mView').addEventListener('dragover', e => { e.preventDefault(); $('mView').style.outline = '3px solid #4a9eff'; });
+$('mView').addEventListener('dragleave', () => { $('mView').style.outline = ''; });
+$('mView').addEventListener('drop', e => { e.preventDefault(); $('mView').style.outline = ''; if (modal.p >= 0) swapImage(modal.p, modal.s, e.dataTransfer.files); });
+function openEditor(pi, si, editWhich) {
   modal.p = pi; modal.s = si; const sl = curSlide(); if (!sl) return;
-  const hasText = si === 0 && posts[pi].coverText.trim();
-  $('mModeWrap').hidden = !hasText;
-  modal.mode = hasText ? (mode || modal.mode || 'photo') : 'photo';
-  [...$('mMode').children].forEach(b => b.classList.toggle('on', b.dataset.m === modal.mode));
   $('mTitle').textContent = `${pi + 1}번 게시물 · ${si + 1}장${si === 0 ? ' (표지)' : ''}`;
   $('mZoom').value = sl.zoom; $('mZoomOut').textContent = Math.round(sl.zoom * 100) + '%';
   $('mCoverWrap').hidden = si !== 0; paintTextCtl();
-  if (modal.openedFor !== posts[pi].id) { undoStack = []; $('mUndo').disabled = true; modal.openedFor = posts[pi].id; }
+  if (modal.openedFor !== posts[pi].id) { undoStack = []; $('mUndo').disabled = true; modal.openedFor = posts[pi].id; setVZ(1); setTextOpen(false); }
   $('modal').classList.add('open'); render();
+  if (editWhich) setTimeout(() => startInline(editWhich), 60);
 }
-function closeEditor() { modal.p = modal.s = -1; modal.openedFor = null; undoStack = []; $('modal').classList.remove('open'); rebuild(); }
+function closeEditor() { endInline(); modal.p = modal.s = -1; modal.openedFor = null; undoStack = []; $('modal').classList.remove('open'); rebuild(); }
+
+// ----- 화면 확대 (보기용, 결과물에는 영향 없음)
+let vz = 1;
+function setVZ(v, cx, cy) {
+  const view = $('mView'), old = vz;
+  vz = Math.max(1, Math.min(4, Math.round(v * 4) / 4));
+  const fx = cx ?? view.clientWidth / 2, fy = cy ?? view.clientHeight / 2;
+  const px = (view.scrollLeft + fx) / old, py = (view.scrollTop + fy) / old;
+  $('mStage').style.setProperty('--vz', vz);
+  $('vzIn').value = Math.round(vz * 100) + '%';
+  view.scrollLeft = px * vz - fx; view.scrollTop = py * vz - fy;
+  if (inlineWhich) placeInline();
+}
+$('vzDn').onclick = () => setVZ(vz - 0.25);
+$('vzUp').onclick = () => setVZ(vz + 0.25);
+$('mView').addEventListener('wheel', e => {   // Ctrl(⌘)+휠 = 화면 확대, 그냥 휠 = 스크롤
+  if (!(e.ctrlKey || e.metaKey)) return;
+  e.preventDefault();
+  const r = $('mView').getBoundingClientRect();
+  setVZ(vz * (e.deltaY < 0 ? 1.15 : 1 / 1.15), e.clientX - r.left, e.clientY - r.top);
+}, { passive: false });
+
+// ----- 캔버스: 글자 클릭 = 직접 입력, 글자 드래그 = 글자 이동, 그 외 드래그 = 사진 위치
 const mc = $('mCanvas');
-mc.addEventListener('pointerdown', e => { if (!curSlide()) return; snap(); drag = { x: e.clientX, y: e.clientY }; mc.setPointerCapture(e.pointerId); });
+const toCanvas = e => { const r = mc.getBoundingClientRect(); return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height }; };
+function hitText(pt) {
+  const p = posts[modal.p]; if (modal.s !== 0 || !p || !p._lay) return null;
+  const L = p._lay, inCol = pt.x > L.colX - 30 && pt.x < L.colX + L.colW + 30;
+  if (!inCol) return null;
+  if (p.coverText.trim() && pt.y > L.title.top - 20 && pt.y < L.title.top + L.title.h + 12) return 'title';
+  if ((p.subText || '').trim() && pt.y > L.sub.top - 12 && pt.y < L.sub.top + L.sub.h + 20) return 'sub';
+  return null;
+}
+mc.addEventListener('pointerdown', e => {
+  if (!curSlide()) return;
+  if (inlineWhich) { endInline(); return; }
+  const pt = toCanvas(e);
+  drag = { x: e.clientX, y: e.clientY, target: hitText(pt) || 'photo', moved: false };
+  try { mc.setPointerCapture(e.pointerId); } catch (err) {}
+});
 mc.addEventListener('pointermove', e => {
-  const sl = curSlide(); if (!drag || !sl) return;
-  const r = imgRect(sl), k = W / mc.clientWidth;
-  const dx = (e.clientX - drag.x) * k, dy = (e.clientY - drag.y) * k; drag = { x: e.clientX, y: e.clientY };
-  if (modal.mode === 'text' && modal.s === 0) {
+  const sl = curSlide(); if (!sl) return;
+  if (!drag) { mc.style.cursor = hitText(toCanvas(e)) ? 'text' : 'grab'; return; }
+  const k = W / mc.clientWidth;
+  const dx = (e.clientX - drag.x) * k, dy = (e.clientY - drag.y) * k;
+  if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 5) return;
+  if (!drag.moved) { drag.moved = true; snap(); }
+  drag.x = e.clientX; drag.y = e.clientY;
+  if (drag.target !== 'photo') {
     const st = posts[modal.p].st;
     st.offX = Math.round(Math.max(-500, Math.min(500, (st.offX || 0) + dx)));
     st.offY = Math.round(Math.max(-1000, Math.min(1000, (st.offY || 0) + dy)));
-    render(); return;
+  } else {
+    if (!sl.img) { render(); return; }
+    const r = imgRect(sl);
+    if (r.maxX > 0) sl.panX = Math.max(-1, Math.min(1, sl.panX - dx / r.maxX));
+    if (r.maxY > 0) sl.panY = Math.max(-1, Math.min(1, sl.panY - dy / r.maxY));
   }
-  if (r.maxX > 0) sl.panX = Math.max(-1, Math.min(1, sl.panX - dx / r.maxX));
-  if (r.maxY > 0) sl.panY = Math.max(-1, Math.min(1, sl.panY - dy / r.maxY));
   render();
 });
-mc.addEventListener('pointerup', () => drag = null);
-mc.addEventListener('wheel', e => { e.preventDefault(); const sl = curSlide(); if (sl) snapOnce(); if (sl) setZoom(sl.zoom - e.deltaY * 0.001); }, { passive: false });
+mc.addEventListener('pointerup', () => {
+  if (drag && !drag.moved && drag.target !== 'photo') startInline(drag.target);
+  else if (drag && !drag.moved && curSlide() && !curSlide().img) pickForBlank();
+  drag = null;
+});
+
+// ----- 미리보기 위에서 바로 글자 입력 (엔터 = 줄바꿈)
+let inlineWhich = null;
+const inl = $('mInline');
+function placeInline() {
+  const p = posts[modal.p]; if (!p || !p._lay || !inlineWhich) return;
+  const L = p._lay, b = L[inlineWhich], k = mc.clientWidth / W;
+  inl.style.left = (L.colX * k) + 'px';
+  inl.style.top = (b.top * k) + 'px';
+  inl.style.width = (L.colW * k) + 'px';
+  inl.style.font = `${b.w} ${b.size * k}px "${b.font}"`;
+  inl.style.lineHeight = (b.lh * k) + 'px';
+  inl.style.letterSpacing = (L.tracking * b.size / 100 * k) + 'px';
+  inl.style.color = b.color;
+  inl.style.textAlign = L.align;
+  inl.style.height = 'auto';
+  inl.style.height = Math.max(b.lh * k, inl.scrollHeight) + 'px';
+}
+function startInline(which) {
+  const p = posts[modal.p]; if (!p || modal.s !== 0) return;
+  if (!p._lay) render();
+  snap();
+  inlineWhich = which; p._hide = which;
+  inl.value = which === 'title' ? p.coverText : (p.subText || '');
+  inl.hidden = false; render();
+  requestAnimationFrame(() => { placeInline(); inl.focus(); inl.setSelectionRange(inl.value.length, inl.value.length); });
+}
+function endInline() {
+  if (!inlineWhich) return;
+  const p = posts[modal.p];
+  if (p) { p._hide = null; }
+  inlineWhich = null; inl.hidden = true;
+  paintTextCtl(); syncSidebar(); render();
+}
+inl.addEventListener('input', () => {
+  const p = posts[modal.p]; if (!p) return;
+  if (inlineWhich === 'title') p.coverText = inl.value; else p.subText = inl.value;
+  $('mCover').value = p.coverText; $('mSub').value = p.subText || '';
+  renderNow().then(placeInline);
+});
+inl.addEventListener('blur', () => setTimeout(endInline, 0));
+inl.addEventListener('keydown', e => {
+  if (e.key === 'Escape' || (e.key === 'Enter' && (e.ctrlKey || e.metaKey))) { e.preventDefault(); inl.blur(); }
+  e.stopPropagation();
+});
+
 function setZoom(z) { const sl = curSlide(); sl.zoom = Math.max(1, Math.min(2.5, z)); $('mZoom').value = sl.zoom; $('mZoomOut').textContent = Math.round(sl.zoom * 100) + '%'; render(); }
 $('mZoom').oninput = e => { snapOnce(); setZoom(+e.target.value); };
-$('mCover').oninput = e => { snapOnce(); posts[modal.p].coverText = e.target.value; $('mModeWrap').hidden = !e.target.value.trim(); syncSidebar(); render(); };
-$('mReset').onclick = () => { snap();
-  if (modal.mode === 'text' && modal.s === 0) { const st = posts[modal.p].st; st.offX = st.offY = 0; st.textPos = 'bottom'; render(); return; }
-  const sl = curSlide(); sl.panX = sl.panY = 0; setZoom(1);
+$('mCover').oninput = e => { snapOnce(); posts[modal.p].coverText = e.target.value; syncSidebar(); render(); };
+$('mReset').onclick = () => {
+  snap();
+  const sl = curSlide(); sl.panX = sl.panY = 0;
+  if (modal.s === 0) { const st = posts[modal.p].st; st.offX = st.offY = 0; st.textPos = 'bottom'; }
+  setZoom(1);
 };
 $('mClose').onclick = closeEditor;
 $('modal').onclick = e => { if (e.target === $('modal')) closeEditor(); };
@@ -897,7 +1083,7 @@ async function exportZip(list, filename) {
     const p = list[k], dir = list.length > 1 ? zip.folder(`post_${pad(k + 1)}`) : zip;
     let n = 0;
     for (let i = 0; i < p.slides.length; i++) {
-      if (isCapIdx(i)) continue;
+      if (isCapIdx(i) || !p.slides[i].img) continue;
       const blob = await new Promise(r => p.slides[i].canvas.toBlob(r, 'image/jpeg', 0.95));
       dir.file(`${pad(++n)}.jpg`, blob);
     }
@@ -996,7 +1182,7 @@ async function processPost(p) {
   p.busy = true;
   const L = LANG_NAME[S.lang], lang = S.lang;
   const capSources = captionSources(p);
-  const imgSlides = p.slides.filter((_, i) => !isCapIdx(i));
+  const imgSlides = p.slides.filter((sl, i) => !isCapIdx(i) && sl.orig);
   const perImg = (S.aiClean ? 1 : 0) + (S.aiRegen ? 1 : 0);
   const total = 1 + ((capSources.length || p.caption.trim()) ? 1 : 0) + imgSlides.length * perImg;
   let done = 0; const errs = [], doing = new Set();
@@ -1008,7 +1194,7 @@ async function processPost(p) {
   };
 
   const textChain = (async () => {
-    await step('제목 번역', async () => {
+    if (p.slides[0].orig) await step('제목 번역', async () => {
       const d = await api('/claude', { prompt: titlePrompt(L), images: [imgToB64(p.slides[0].orig)] });
       const j = parseJSON(d.text);
       if (j.title) p.coverText = j.title.trim();
@@ -1268,7 +1454,7 @@ function compressImg(img, { max = 2000, png = false } = {}) {
 }
 function postMeta(p) {
   return {
-    owner: user ? user.uid : '', day: p.day, order: p.order, coverText: p.coverText, caption: p.caption,
+    owner: user ? user.uid : '', day: p.day, order: p.order, coverText: p.coverText, subText: p.subText || '', caption: p.caption,
     st: p.st, active: p.active, source: p.source || '', done: !!p.done,
     slides: p.slides.map(sl => ({ id: sl.id, use: sl.use, panX: sl.panX, panY: sl.panY, zoom: sl.zoom,
       has: ['orig', 'clean', 'regen'].filter(v => sl[v]), cleanManual: !!sl.cleanManual })),
@@ -1335,7 +1521,8 @@ async function postFromMeta(m, mine) {
   const map = {};
   await Promise.all(ids.map(async id => { const im = await getImg(id); if (im) { map[id] = im; if (mine) savedImgs.add(id); } }));
   const slides = (m.slides || []).map(s => {
-    const o = map[`${s.id}_orig`]; if (!o) return null;
+    const o = map[`${s.id}_orig`] || null;
+    if (!o && (s.has || []).length) return null;   // 이미지가 아직 올라오지 않은 경우만 건너뜀
     const sl = makeSlide(o);
     sl.id = s.id; sl.clean = map[`${s.id}_clean`] || null; sl.regen = map[`${s.id}_regen`] || null;
     sl.cleanManual = !!s.cleanManual; sl.use = sl[s.use] ? s.use : 'orig'; sl.img = sl[sl.use];
@@ -1344,7 +1531,7 @@ async function postFromMeta(m, mine) {
   }).filter(Boolean);
   if (!slides.length) return null;
   const caps = (m.caps || []).map(c => { const im = map['cap_' + c]; if (im) imgIdMap.set(im, c); return im; }).filter(Boolean);
-  return { id: m.id, owner: m.owner, day: m.day ?? todayIdx(), order: m.order || 0, coverText: m.coverText || '', caption: m.caption || '',
+  return { id: m.id, owner: m.owner, day: m.day ?? todayIdx(), order: m.order || 0, coverText: m.coverText || '', subText: m.subText || '', caption: m.caption || '',
     capImgs: caps, st: { ...STYLE_DEFAULT, ...(m.st || {}) }, open: false, slides,
     active: Math.min(m.active || 0, slides.length - 1), source: m.source || '', done: !!m.done };
 }
