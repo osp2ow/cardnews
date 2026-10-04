@@ -136,7 +136,24 @@ details.more summary::-webkit-details-marker{display:none}
 .acct span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .link.gray{color:var(--muted)}
 .daytabs{display:flex;gap:6px;margin-bottom:24px;flex-wrap:wrap}
-.daytab{position:relative;min-width:54px;height:40px;border-radius:12px;border:1px solid var(--line2);background:transparent;color:var(--text);font:inherit;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 12px}
+.datebar{position:relative;display:flex;align-items:center;gap:6px;margin-bottom:12px}
+.navbtn{width:36px;height:36px;border-radius:10px;border:1px solid var(--line2);background:transparent;color:var(--text);font-size:18px;line-height:1;cursor:pointer}
+.navbtn:hover,.monthbtn:hover,.todaybtn:hover{background:#161616}
+.monthbtn{height:36px;padding:0 14px;border-radius:10px;border:1px solid var(--line2);background:transparent;color:var(--text);font:inherit;font-weight:800;font-size:15px;cursor:pointer}
+.todaybtn{height:36px;padding:0 12px;border-radius:10px;border:1px solid var(--line2);background:transparent;color:var(--muted);font:inherit;font-size:13px;cursor:pointer;margin-left:4px}
+.calpop{position:absolute;top:44px;left:0;z-index:40;background:#111;border:1px solid var(--line2);border-radius:14px;padding:12px;width:310px;box-shadow:0 12px 32px rgba(0,0,0,.6)}
+.calhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:15px}
+.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.calgrid .wd{font-size:11px;color:var(--muted);text-align:center;padding:4px 0}
+.calgrid button{position:relative;height:38px;border-radius:8px;border:0;background:transparent;color:var(--text);font:inherit;font-size:13px;cursor:pointer}
+.calgrid button:hover{background:#1e1e1e}
+.calgrid button.today{box-shadow:inset 0 0 0 1px #4a9eff}
+.calgrid button.sel{background:#e9e9e9;color:#000;font-weight:800}
+.calgrid button i{position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:#4a9eff}
+.daytab .dw{font-size:12px;opacity:.75;font-weight:600}
+.daytab .dd{font-size:16px;font-weight:800}
+input.daysel{color-scheme:dark}
+.daytab{position:relative;min-width:64px;height:46px;border-radius:12px;border:1px solid var(--line2);background:transparent;color:var(--text);font:inherit;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 12px}
 .daytab:hover{background:#161616}
 .daytab.on{background:#e9e9e9;color:#000;border-color:#e9e9e9}
 .daytab.today::before{content:'';position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:50%;background:#4a9eff}
@@ -250,6 +267,16 @@ textarea.inline{position:absolute;margin:0;padding:0;border:0;border-radius:0;mi
   <div class="topbar">
     <h2>최종 결과 미리보기<span class="sub">1080 × 1350 · <span id="count"></span></span></h2>
   </div>
+  <div class="datebar">
+    <button class="navbtn" id="wkPrev" title="이전 주">‹</button>
+    <button class="monthbtn" id="monthBtn" title="달력에서 날짜 고르기"></button>
+    <button class="navbtn" id="wkNext" title="다음 주">›</button>
+    <button class="todaybtn" id="todayBtn">오늘</button>
+    <div class="calpop" id="calPop" hidden>
+      <div class="calhead"><button class="navbtn" id="calPrev">‹</button><b id="calTitle"></b><button class="navbtn" id="calNext">›</button></div>
+      <div class="calgrid" id="calGrid"></div>
+    </div>
+  </div>
   <div class="daytabs" id="dayTabs"></div>
   <div class="sechead" id="mineHead"></div>
   <div id="empty" class="empty">
@@ -289,7 +316,7 @@ textarea.inline{position:absolute;margin:0;padding:0;border:0;border-radius:0;mi
       <div id="mCoverWrap" hidden>
         <div class="lbl">표지 문구 <span>*별표* = 강조색</span></div>
         <textarea id="mCover" style="min-height:80px" placeholder="텍스트를 입력하세요"></textarea>
-        <button class="btn" id="mTextToggle" style="margin-top:10px">Aa 글자 편집 <span id="mTextArrow">▾</span></button>
+        <button class="btn" id="mTextToggle" style="margin-top:10px">글자 편집 <span id="mTextArrow">▾</span></button>
         <div id="mTextBody" class="textbody" hidden>
         <div class="lbl">수정할 글자</div>
         <div class="seg" id="mTarget" style="grid-template-columns:1fr 1fr"><button data-t="title">표지 문구</button><button data-t="sub">부제목</button></div>
@@ -638,10 +665,10 @@ async function decodeFiles(files) {
 async function addPosts(files) {
   const imgs = await decodeFiles(files);
   if (!imgs.length) return;
-  imgs.forEach((img, i) => posts.push({ id: uid(), day: curDay, order: Date.now() + i, done: false, coverText: '', subText: '', caption: '', capImgs: [], st: { ...STYLE_DEFAULT, ...lastStyle, offX: 0, offY: 0 }, open: false, slides: [makeSlide(img)], active: 0 }));
+  imgs.forEach((img, i) => posts.push({ id: uid(), date: curDate, day: dayIdxOf(curDate), order: Date.now() + i, done: false, coverText: '', subText: '', caption: '', capImgs: [], st: { ...STYLE_DEFAULT, ...lastStyle, offX: 0, offY: 0 }, open: false, slides: [makeSlide(img)], active: 0 }));
   selIdx = posts.length - imgs.length;
   rebuild();
-  toast(`${DAYS[curDay]}요일에 게시물 ${imgs.length}개 추가됨`);
+  toast(`${dateLabel(curDate)}에 게시물 ${imgs.length}개 추가됨`);
 }
 // 특정 게시물에 장 추가 (ADD)
 async function addSlides(pi, files) {
@@ -680,7 +707,7 @@ function removeSlide(pi, si) {
   rebuild();
 }
 function rebuildSel() {
-  const mine = posts.map((p, i) => [p, i]).filter(([p]) => p.day === curDay);
+  const mine = posts.map((p, i) => [p, i]).filter(([p]) => p.date === curDate);
   $('posts').querySelectorAll(':scope > .post').forEach((el, k) => el.classList.toggle('sel', mine[k] && mine[k][1] === selIdx));
 }
 function select(pi) {
@@ -691,27 +718,65 @@ function select(pi) {
 function syncSidebar() {
   const p = posts[selIdx];
   $('caption').disabled = !p; $('caption').value = p ? p.caption : '';
-  const b = $('selBadge'); b.textContent = p ? `${DAYS[p.day]}요일 ${posts.filter(q => q.day === p.day).indexOf(p) + 1}번` : '게시물 없음'; b.classList.toggle('sel', !!p);
+  const b = $('selBadge'); b.textContent = p ? `${dateLabel(p.date)} ${posts.filter(q => q.date === p.date).indexOf(p) + 1}번` : '게시물 없음'; b.classList.toggle('sel', !!p);
 }
 
 const DAYS = ['월', '화', '수', '목', '금', '토', '일'];
 const todayIdx = () => (new Date().getDay() + 6) % 7;
-let curDay = todayIdx();
+// ----- 날짜 (YYYY-MM-DD)
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseYmd = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const todayStr = () => ymd(new Date());
+const dayIdxOf = s => (parseYmd(s).getDay() + 6) % 7;
+const addDays = (s, n) => { const d = parseYmd(s); d.setDate(d.getDate() + n); return ymd(d); };
+const weekStartOf = s => addDays(s, -dayIdxOf(s));
+const dateLabel = s => { const d = parseYmd(s); return `${d.getMonth() + 1}월 ${d.getDate()}일 (${DAYS[dayIdxOf(s)]})`; };
+const legacyDate = i => addDays(weekStartOf(todayStr()), i ?? todayIdx());   // 예전(요일만 저장된) 게시물 → 이번 주 날짜
+let curDate = todayStr();
+let calMonth = curDate.slice(0, 7);
+const countOn = date => posts.filter(p => p.date === date).length + others.filter(p => p.date === date).length;
+function goDate(d) { curDate = d; calMonth = d.slice(0, 7); selIdx = posts.findIndex(p => p.date === d); rebuild(); }
 let others = [];   // 다른 사람 게시물 (보기·다운로드 전용)
 let addTarget = -1;
 
 function paintDayTabs() {
+  const d0 = parseYmd(curDate);
+  $('monthBtn').textContent = `${d0.getFullYear()}년 ${d0.getMonth() + 1}월 ▾`;
   const box = $('dayTabs'); box.innerHTML = '';
+  const ws = weekStartOf(curDate), today = todayStr();
   DAYS.forEach((d, i) => {
-    const n = posts.filter(p => p.day === i).length + others.filter(p => p.day === i).length;
+    const date = addDays(ws, i), n = countOn(date);
     const b = document.createElement('button');
-    b.className = 'daytab' + (i === curDay ? ' on' : '') + (i === todayIdx() ? ' today' : '');
-    b.innerHTML = d + (n ? `<i>${n}</i>` : '');
-    b.title = i === todayIdx() ? '오늘' : '';
-    b.onclick = () => { curDay = i; selIdx = posts.findIndex(p => p.day === i); rebuild(); };
+    b.className = 'daytab' + (date === curDate ? ' on' : '') + (date === today ? ' today' : '');
+    b.innerHTML = `<span class="dw">${d}</span><span class="dd">${parseYmd(date).getDate()}</span>` + (n ? `<i>${n}</i>` : '');
+    b.title = date === today ? '오늘' : dateLabel(date);
+    b.onclick = () => goDate(date);
     box.appendChild(b);
   });
+  if (!$('calPop').hidden) paintCal();
 }
+function paintCal() {
+  const [y, m] = calMonth.split('-').map(Number);
+  $('calTitle').textContent = `${y}년 ${m}월`;
+  const first = `${calMonth}-01`, lead = dayIdxOf(first), days = new Date(y, m, 0).getDate(), today = todayStr();
+  const g = $('calGrid'); g.innerHTML = DAYS.map(d => `<div class="wd">${d}</div>`).join('') + '<div></div>'.repeat(lead);
+  for (let i = 1; i <= days; i++) {
+    const date = `${calMonth}-${pad(i)}`, b = document.createElement('button');
+    b.className = (date === curDate ? 'sel' : '') + (date === today ? ' today' : '');
+    b.innerHTML = i + (countOn(date) ? '<i></i>' : '');
+    b.onclick = () => { $('calPop').hidden = true; goDate(date); };
+    g.appendChild(b);
+  }
+}
+const shiftMonth = n => { const [y, m] = calMonth.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); calMonth = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; paintCal(); };
+$('monthBtn').onclick = e => { e.stopPropagation(); calMonth = curDate.slice(0, 7); $('calPop').hidden = !$('calPop').hidden; if (!$('calPop').hidden) paintCal(); };
+$('calPrev').onclick = e => { e.stopPropagation(); shiftMonth(-1); };
+$('calNext').onclick = e => { e.stopPropagation(); shiftMonth(1); };
+$('calPop').onclick = e => e.stopPropagation();
+document.addEventListener('click', () => { $('calPop').hidden = true; });
+$('wkPrev').onclick = () => goDate(addDays(curDate, -7));
+$('wkNext').onclick = () => goDate(addDays(curDate, 7));
+$('todayBtn').onclick = () => goDate(todayStr());
 function myLabel() { return (user && nicks[user.uid]) ? `${nicks[user.uid]} (나)` : '내 게시물'; }
 function setHead(el, title, sub) {
   el.innerHTML = ''; el.append(title);
@@ -759,10 +824,10 @@ function buildCard(p, pi, ro) {
 
   // ----- 내 게시물 전용 -----
   const [bSwap, bDone, bDel] = btns;
-  const daySel = document.createElement('select'); daySel.className = 'daysel'; daySel.title = '요일 옮기기';
-  daySel.innerHTML = DAYS.map((d, i) => `<option value="${i}" ${i === p.day ? 'selected' : ''}>${d}요일</option>`).join('');
+  const daySel = document.createElement('input'); daySel.type = 'date'; daySel.className = 'daysel'; daySel.title = '날짜 옮기기';
+  daySel.value = p.date;
   daySel.onclick = e => e.stopPropagation();
-  daySel.onchange = () => { p.day = +daySel.value; toast(`${DAYS[p.day]}요일로 옮겼어요`); rebuild(); };
+  daySel.onchange = () => { if (!daySel.value) return; p.date = daySel.value; p.day = dayIdxOf(p.date); toast(`${dateLabel(p.date)}로 옮겼어요`); rebuild(); };
   pimg.appendChild(daySel);
   bDone.onclick = e => { e.stopPropagation(); p.done = !p.done; rebuild(); };
   bSwap.onclick = e => { e.stopPropagation(); swapTarget = { pi, si: p.active }; $('fileSwap').click(); };
@@ -809,16 +874,16 @@ function buildCard(p, pi, ro) {
 // 다른 사람 게시물 (아래쪽) — 내 카드는 건드리지 않고 이 부분만 다시 그림
 function renderOthers() {
   const wrap = $('othersWrap'); wrap.innerHTML = '';
-  const theirs = others.filter(p => p.day === curDay);
+  const theirs = others.filter(p => p.date === curDate);
   const owners = [...new Set(others.map(p => p.owner))].sort((a, b) => (nicks[a] || '').localeCompare(nicks[b] || ''));
   owners.forEach(o => {
     const list = theirs.filter(p => p.owner === o).sort((a, b) => a.order - b.order);
     const sec = document.createElement('div'); sec.className = 'othersec';
     const head = document.createElement('div'); head.className = 'sechead';
-    setHead(head, nicks[o] || '다른 사람', `${DAYS[curDay]}요일 · ${list.length}개`);
+    setHead(head, nicks[o] || '다른 사람', `${dateLabel(curDate)} · ${list.length}개`);
     sec.appendChild(head);
     if (!list.length) {
-      const e = document.createElement('div'); e.className = 'emptyline'; e.textContent = `${DAYS[curDay]}요일에 올린 게시물이 없어요`;
+      const e = document.createElement('div'); e.className = 'emptyline'; e.textContent = `${dateLabel(curDate)}에 올린 게시물이 없어요`;
       sec.appendChild(e);
     } else {
       const grid = document.createElement('div'); grid.className = 'posts';
@@ -832,15 +897,15 @@ function renderOthers() {
 }
 
 function rebuild() {
-  const mine = posts.map((p, pi) => [p, pi]).filter(([p]) => p.day === curDay);
-  if (!posts[selIdx] || posts[selIdx].day !== curDay) selIdx = mine.length ? mine[0][1] : -1;
-  setHead($('mineHead'), myLabel(), `${DAYS[curDay]}요일 · ${mine.length}개`);
+  const mine = posts.map((p, pi) => [p, pi]).filter(([p]) => p.date === curDate);
+  if (!posts[selIdx] || posts[selIdx].date !== curDate) selIdx = mine.length ? mine[0][1] : -1;
+  setHead($('mineHead'), myLabel(), `${dateLabel(curDate)} · ${mine.length}개`);
   $('empty').hidden = mine.length > 0;
-  $('emptyDay').textContent = `${DAYS[curDay]}요일에 만든 게시물이 없어요`;
+  $('emptyDay').textContent = `${dateLabel(curDate)}에 만든 게시물이 없어요`;
   const nSlides = mine.reduce((a, [p]) => a + p.slides.length, 0);
-  $('count').textContent = `${DAYS[curDay]}요일 내 게시물 ${mine.length}개 · ${nSlides}장`;
+  $('count').textContent = `${dateLabel(curDate)} 내 게시물 ${mine.length}개 · ${nSlides}장`;
   $('btnZip').disabled = !mine.length;
-  $('btnZip').textContent = `⬇ ${DAYS[curDay]}요일 내 게시물 다운로드 (ZIP)`;
+  $('btnZip').textContent = `⬇ ${dateLabel(curDate)} 내 게시물 다운로드 (ZIP)`;
   const nDone = posts.filter(p => p.done).length;
   $('btnClearDone').hidden = !nDone; $('btnClearDone').textContent = `✓ 업로드 완료한 게시물 정리 (${nDone})`;
   const wrap = $('posts'); wrap.innerHTML = '';
@@ -1097,7 +1162,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && modal.p >=
 // 파일 이름 = 표지 문구 (줄바꿈·강조표시·파일명에 못 쓰는 문자 정리)
 function fileBase(p) {
   const t = (p.coverText || '').replace(/\*/g, '').replace(/\s+/g, ' ').replace(/[\\/:?"<>|~#%&{}]/g, '').trim().slice(0, 60);
-  return t || `post_${DAYS[p.day]}_${String(p.order || Date.now()).slice(-4)}`;
+  return t || `post_${p.date}_${String(p.order || Date.now()).slice(-4)}`;
 }
 // 게시물의 사진을 장 수만큼 각각 JPG로 저장
 async function downloadImages(p) {
@@ -1144,7 +1209,7 @@ async function exportZip(list, filename) {
 }
 $('btnZip').onclick = () => {
   const d = new Date();
-  exportZip(posts.filter(p => p.day === curDay), `cardnews_${DAYS[curDay]}_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.zip`);
+  exportZip(posts.filter(p => p.date === curDate), `cardnews_${curDate}.zip`);
 };
 
 /* ---------- controls ---------- */
@@ -1303,7 +1368,7 @@ function compressImg(img, { max = 2000, png = false } = {}) {
 }
 function postMeta(p) {
   return {
-    owner: user ? user.uid : '', day: p.day, order: p.order, coverText: p.coverText, subText: p.subText || '', caption: p.caption,
+    owner: user ? user.uid : '', date: p.date, day: dayIdxOf(p.date), order: p.order, coverText: p.coverText, subText: p.subText || '', caption: p.caption,
     st: p.st, active: p.active, source: p.source || '', done: !!p.done,
     slides: p.slides.map(sl => ({ id: sl.id, use: sl.use, panX: sl.panX, panY: sl.panY, zoom: sl.zoom,
       has: ['orig', 'clean', 'regen'].filter(v => sl[v]), cleanManual: !!sl.cleanManual })),
@@ -1380,7 +1445,8 @@ async function postFromMeta(m, mine) {
   }).filter(Boolean);
   if (!slides.length) return null;
   const caps = (m.caps || []).map(c => { const im = map['cap_' + c]; if (im) imgIdMap.set(im, c); return im; }).filter(Boolean);
-  return { id: m.id, owner: m.owner, day: m.day ?? todayIdx(), order: m.order || 0, coverText: m.coverText || '', subText: m.subText || '', caption: m.caption || '',
+  const date = m.date || legacyDate(m.day);
+  return { id: m.id, owner: m.owner, date, day: dayIdxOf(date), order: m.order || 0, coverText: m.coverText || '', subText: m.subText || '', caption: m.caption || '',
     capImgs: caps, st: { ...STYLE_DEFAULT, ...(m.st || {}) }, open: false, slides,
     active: Math.min(m.active || 0, slides.length - 1), source: m.source || '', done: !!m.done };
 }
