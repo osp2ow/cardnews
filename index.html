@@ -965,7 +965,8 @@ function paintTextCtl() {
 $('mDown').onclick = () => {
   const sl = curSlide(); if (!sl) return;
   if (!sl.img) { toast('사진이 없는 장이에요'); return; }
-  sl.canvas.toBlob(b => saveBlob(b, `${DAYS[posts[modal.p].day]}_${pad(modal.p + 1)}_${pad(modal.s + 1)}.jpg`), 'image/jpeg', 0.95);
+  const p = posts[modal.p], n = p.slides.filter(x => x.img).length;
+  sl.canvas.toBlob(b => saveBlob(b, n > 1 ? `${fileBase(p)}_${pad(modal.s + 1)}.jpg` : `${fileBase(p)}.jpg`), 'image/jpeg', 0.95);
 };
 $('mDelImg').onclick = () => {
   const sl = curSlide(); if (!sl || !sl.orig) { toast('이미 비어 있어요'); return; }
@@ -1093,13 +1094,17 @@ $('modal').onclick = e => { if (e.target === $('modal')) closeEditor(); };
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && modal.p >= 0) closeEditor(); });
 
 /* ---------- export ---------- */
+// 파일 이름 = 표지 문구 (줄바꿈·강조표시·파일명에 못 쓰는 문자 정리)
+function fileBase(p) {
+  const t = (p.coverText || '').replace(/\*/g, '').replace(/\s+/g, ' ').replace(/[\\/:?"<>|~#%&{}]/g, '').trim().slice(0, 60);
+  return t || `post_${DAYS[p.day]}_${String(p.order || Date.now()).slice(-4)}`;
+}
 // 게시물의 사진을 장 수만큼 각각 JPG로 저장
 async function downloadImages(p) {
   await renderNow();
   const list = p.slides.filter(sl => sl.img);
   if (!list.length) { toast('사진이 없어요'); return; }
-  const who = p.owner && user && p.owner !== user.uid ? (nicks[p.owner] || 'post') : 'post';
-  const base = `${who}_${DAYS[p.day]}_${String(p.order || Date.now()).slice(-4)}`;
+  const base = fileBase(p);
   for (let i = 0; i < list.length; i++) {
     const blob = await new Promise(r => list[i].canvas.toBlob(r, 'image/jpeg', 0.95));
     saveBlob(blob, list.length > 1 ? `${base}_${pad(i + 1)}.jpg` : `${base}.jpg`);
