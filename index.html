@@ -1051,7 +1051,8 @@ function restoreStrip(p) {
   if (p._thumbScroll) strip.scrollLeft = p._thumbScroll;
   const t = strip.children[p.active];
   if (t && t.offsetWidth) {
-    const l = t.offsetLeft - strip.offsetLeft, r = l + t.offsetWidth;
+    // 줄 안에서의 위치 (줄 기준 좌표로 계산해야 정확함)
+    const l = t.getBoundingClientRect().left - strip.getBoundingClientRect().left + strip.scrollLeft, r = l + t.offsetWidth;
     if (l < strip.scrollLeft) strip.scrollLeft = l - 8;
     else if (r > strip.scrollLeft + strip.clientWidth) strip.scrollLeft = r - strip.clientWidth + 8;
     p._thumbScroll = strip.scrollLeft;
