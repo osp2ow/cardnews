@@ -1336,6 +1336,25 @@ $('mReset').onclick = () => {
 $('mClose').onclick = closeEditor;
 $('modal').onclick = e => { if (e.target === $('modal')) closeEditor(); };
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && modal.p >= 0) closeEditor(); });
+// 키보드 ← → 로 게시물 안의 사진 넘기기 (카드를 고른 상태 / 편집 화면 둘 다)
+document.addEventListener('keydown', e => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+  const tag = (document.activeElement || {}).tagName;
+  if (/^(TEXTAREA|INPUT|SELECT)$/.test(tag) || inlineWhich) return;   // 글자 입력 중에는 원래대로 커서 이동
+  const d = e.key === 'ArrowRight' ? 1 : -1;
+  if (modal.p >= 0) {
+    const p = posts[modal.p], to = modal.s + d;
+    if (!p || p.kind === 'reel' || to < 0 || to >= p.slides.length) return;
+    e.preventDefault(); p.active = to; openEditor(modal.p, to);
+    return;
+  }
+  const p = posts[selIdx];
+  if (!p || p.kind === 'reel' || !vis(p)) return;
+  const to = p.active + d;
+  if (to < 0 || to >= p.slides.length) return;
+  e.preventDefault(); p.active = to; rebuild();
+});
 
 /* ---------- export ---------- */
 // 파일 이름 = 표지 문구 (줄바꿈·강조표시·파일명에 못 쓰는 문자 정리)
