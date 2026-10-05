@@ -340,7 +340,7 @@ textarea.inline{position:absolute;margin:0;padding:0;border:0;border-radius:0;mi
       <div class="lbl">사진 확대 (결과물) <span id="mZoomOut"></span></div>
       <input type="range" id="mZoom" min="1" max="2.5" step="0.01">
       <div id="mCoverWrap" hidden>
-        <div class="lbl">표지 문구 <span>*별표* = 강조색</span></div>
+        <div class="lbl" id="mCoverLbl">표지 문구 <span>*별표* = 강조색</span></div>
         <textarea id="mCover" style="min-height:80px" placeholder="텍스트를 입력하세요"></textarea>
         <button class="btn" id="mTextToggle" style="margin-top:10px">글자 편집 <span id="mTextArrow">▾</span></button>
         <div id="mTextBody" class="textbody" hidden>
@@ -600,7 +600,7 @@ function drawLogo(ctx) {
   ctx.drawImage(logo, x, y, lw, lh);
 }
 function drawSlide(ctx, sl, post, isCover) {
-  const prevH = H; H = ctx.canvas.height;
+  const prevH = H; H = +(ctx.canvas && ctx.canvas.height) || prevH;
   try { drawSlideInner(ctx, sl, post, isCover); } finally { H = prevH; }
 }
 function drawSlideInner(ctx, sl, post, isCover) {
@@ -619,7 +619,8 @@ function drawSlideInner(ctx, sl, post, isCover) {
     ctx.font = '400 32px Pretendard, sans-serif'; ctx.fillText('클릭하거나 끌어다 놓으세요', W / 2, H / 2 + 120);
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   }
-  if (isCover && (post.coverText.trim() || (post.subText || '').trim())) { drawOverlay(ctx, post.st); drawCoverText(ctx, post); }
+  const T = textOf(post, post.slides ? post.slides.indexOf(sl) : 0);
+  if (hasText(T)) { drawOverlay(ctx, T.st); drawCoverText(ctx, T); }
   if (hasLogo() && (S.logoAll || isCover)) drawLogo(ctx);
 }
 
@@ -637,7 +638,7 @@ async function renderNow() {
     } else $('logoFontWarn').hidden = true;
   }
   const all = [...posts, ...others];
-  await Promise.all(all.filter(p => p.coverText.trim() || (p.subText || '').trim()).map(p => {
+  await Promise.all(all.flatMap(allTexts).filter(hasText).map(p => {
     const f = fontOf(p.st.font), fs = fontOf(p.st.subFont || p.st.font), txt = (p.coverText + (p.subText || '')).replace(/\s/g, '');
     const tw = p.st.fontW ?? f.w, sw = p.st.subFontW ?? (fs.id === 'Pretendard' ? 500 : fs.w);
     return Promise.all([document.fonts.load(`${tw} 80px "${f.id}"`, txt), document.fonts.load(`${sw} 40px "${fs.id}"`, txt)]).catch(() => {});
@@ -662,9 +663,10 @@ async function renderNow() {
     if (sl) {
       const mctx = $('mCanvas').getContext('2d');
       drawSlide(mctx, sl, p, modal.s === 0);
-      if (modal.s === 0 && p._lay && !inlineWhich && (p.coverText.trim() || (p.subText || '').trim())) {
-        const L = p._lay; mctx.save(); mctx.setLineDash([12, 10]); mctx.lineWidth = 3; mctx.strokeStyle = 'rgba(255,255,255,.45)';
-        [['title', p.coverText], ['sub', p.subText]].forEach(([k, t]) => { if ((t || '').trim()) mctx.strokeRect(L.colX - 14, L[k].top - 10, L.colW + 28, L[k].h + 20); });
+      const T = textOf(p, modal.s);
+      if (T._lay && !inlineWhich && hasText(T)) {
+        const L = T._lay; mctx.save(); mctx.setLineDash([12, 10]); mctx.lineWidth = 3; mctx.strokeStyle = 'rgba(255,255,255,.45)';
+        [['title', T.coverText], ['sub', T.subText]].forEach(([k, t]) => { if ((t || '').trim()) mctx.strokeRect(L.colX - 14, L[k].top - 10, L.colW + 28, L[k].h + 20); });
         mctx.restore();
       }
     }
@@ -678,6 +680,18 @@ function setVersion(sl, v) {
   sl.panX = sl.panY = 0; sl.zoom = 1;
 }
 const isCapIdx = () => false;   // 2번째 장 자동 캡션 지정 기능 제거
+// 장마다 글자: 1장(표지)은 게시물 자체에, 2장부터는 각 장에 저장 (릴스는 1장)
+function textOf(p, si) {
+  if (!p || !si || si < 0 || p.kind === 'reel' || !p.slides || !p.slides[si]) return p;
+  const sl = p.slides[si];
+  if (sl.coverText == null) sl.coverText = '';
+  if (sl.subText == null) sl.subText = '';
+  if (!sl.st) sl.st = { ...p.st, offX: 0, offY: 0 };
+  return sl;
+}
+const hasText = t => !!(t && ((t.coverText || '').trim() || (t.subText || '').trim()));
+const allTexts = p => p.kind === 'reel' || !p.slides ? [p] : p.slides.map((_, i) => textOf(p, i));
+const curT = () => textOf(posts[modal.p], modal.s);
 function makeSlide(img) {
   const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
   const thumb = document.createElement('canvas'); thumb.width = 128; thumb.height = 160;
@@ -875,11 +889,12 @@ function buildCard(p, pi, ro) {
   pimg.onclick = e => {
     select(pi);
     let which = null;
-    if (p.active === 0 && p._lay && e.target.tagName === 'CANVAS') {
-      const r = e.target.getBoundingClientRect(), x = (e.clientX - r.left) * W / r.width, y = (e.clientY - r.top) * H / r.height, L = p._lay;
+    const T = textOf(p, p.active);
+    if (T._lay && hasText(T) && e.target.tagName === 'CANVAS') {
+      const r = e.target.getBoundingClientRect(), x = (e.clientX - r.left) * W / r.width, y = (e.clientY - r.top) * H / r.height, L = T._lay;
       if (x > L.colX - 30 && x < L.colX + L.colW + 30) {
-        if (p.coverText.trim() && y > L.title.top - 20 && y < L.title.top + L.title.h + 12) which = 'title';
-        else if ((p.subText || '').trim() && y > L.sub.top - 12 && y < L.sub.top + L.sub.h + 20) which = 'sub';
+        if (T.coverText.trim() && y > L.title.top - 20 && y < L.title.top + L.title.h + 12) which = 'title';
+        else if ((T.subText || '').trim() && y > L.sub.top - 12 && y < L.sub.top + L.sub.h + 20) which = 'sub';
       }
     }
     openEditor(pi, p.active, which);
@@ -960,7 +975,7 @@ function curSlide() { return posts[modal.p]?.slides[modal.s]; }
 let undoStack = [];
 function postState() {
   const p = posts[modal.p];
-  return JSON.stringify({ coverText: p.coverText, subText: p.subText || '', st: p.st, slides: p.slides.map(sl => [sl.panX, sl.panY, sl.zoom]) });
+  return JSON.stringify({ coverText: p.coverText, subText: p.subText || '', st: p.st, slides: p.slides.map(sl => [sl.panX, sl.panY, sl.zoom, sl.coverText ?? null, sl.subText ?? null, sl.st || null]) });
 }
 function snap() {
   if (modal.p < 0) return;
@@ -980,7 +995,7 @@ function undo() {
   }
   const st = JSON.parse(top);
   p.coverText = st.coverText; p.subText = st.subText; p.st = st.st;
-  st.slides.forEach((v, i) => { const sl = p.slides[i]; if (sl) [sl.panX, sl.panY, sl.zoom] = v; });
+  st.slides.forEach((v, i) => { const sl = p.slides[i]; if (sl) { [sl.panX, sl.panY, sl.zoom] = v; if (i > 0 && v.length > 3) { sl.coverText = v[3] ?? ''; sl.subText = v[4] ?? ''; sl.st = v[5] || null; } } });
   const sl = curSlide();
   paintTextCtl();
   $('mZoom').value = sl.zoom; $('mZoomOut').textContent = Math.round(sl.zoom * 100) + '%';
@@ -995,7 +1010,7 @@ document.addEventListener('keydown', e => {
 });
 // 편집 화면의 글자 스타일 조절 (− / + / 직접 입력)
 // '표지 문구' / '부제목' 중 선택한 쪽에만 적용되는 항목은 data-t, 공통 항목은 data-k
-const mStyle = () => posts[modal.p].st;
+const mStyle = () => curT().st;
 let textTarget = 'title';
 const TKEY = {   // [표지 문구 키, 부제목 키, 부제목 값이 없을 때 따라갈 키]
   size: ['fontSize', 'subSize'], tracking: ['tracking', 'subTracking', 'tracking'], lineH: ['lineH', 'subLineH'],
@@ -1036,7 +1051,7 @@ $('mAccent').addEventListener('input', () => { snapOnce(); setStyle(tKey('accent
 $('mAlign').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; snap(); setStyle('align', b.dataset.val); paintTextCtl(); });
 $('mShadow').addEventListener('change', () => { snap(); setStyle('shadow', $('mShadow').checked); });
 $('mDivider').addEventListener('change', () => { snap(); setStyle('divider', $('mDivider').checked); });
-$('mSub').addEventListener('input', e => { snapOnce(); posts[modal.p].subText = e.target.value; render(); });
+$('mSub').addEventListener('input', e => { snapOnce(); curT().subText = e.target.value; render(); });
 // 글자 편집 항목은 버튼을 눌렀을 때만 펼침
 function setTextOpen(open) {
   $('mTextBody').hidden = !open;
@@ -1049,16 +1064,17 @@ $('mTextToggle').onclick = () => {
   if (open && $('mTextBody').scrollIntoView) $('mTextBody').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 };
 $('mApplyAll').onclick = () => {
-  const src = mStyle();
-  posts.forEach(q => { if (q !== posts[modal.p]) q.st = { ...src, offX: q.st.offX || 0, offY: q.st.offY || 0, textPos: q.st.textPos || 'bottom' }; });
+  const src = mStyle(), me = curT();
+  posts.forEach(q => allTexts(q).forEach(t => { if (t !== me) t.st = { ...src, offX: t.st.offX || 0, offY: t.st.offY || 0, textPos: t.st.textPos || 'bottom' }; }));
   render(); toast('모든 게시물에 적용했어요');
 };
 function paintTextCtl() {
   if (modal.p < 0) return;
   const st = { ...STYLE_DEFAULT, ...mStyle() };
   if (!$('mFont').options.length) $('mFont').innerHTML = FONT_OPTIONS;
-  $('mCover').value = posts[modal.p].coverText;
-  $('mSub').value = posts[modal.p].subText || '';
+  $('mCover').value = curT().coverText;
+  $('mSub').value = curT().subText || '';
+  $('mCoverLbl').firstChild.textContent = modal.s === 0 ? '표지 문구 ' : `${modal.s + 1}장 문구 `;
   [...$('mTarget').children].forEach(b => b.classList.toggle('on', b.dataset.t === textTarget));
   $('mSubWrap').hidden = textTarget !== 'sub';
   $('mFont').value = styleVal(tKey('font'));
@@ -1094,22 +1110,23 @@ function openEditor(pi, si, editWhich) {
   if (reel) { const p = posts[pi]; $('mCoverT').max = Math.max(0.1, (p.video && p.video.dur) || 1); $('mCoverT').value = p.coverT || 0; $('mCoverTOut').textContent = (p.coverT || 0).toFixed(1) + '초'; }
   $('mTitle').textContent = `${pi + 1}번 게시물 · ${si + 1}장${si === 0 ? ' (표지)' : ''}`;
   $('mZoom').value = sl.zoom; $('mZoomOut').textContent = Math.round(sl.zoom * 100) + '%';
-  $('mCoverWrap').hidden = si !== 0; paintTextCtl();
+  $('mCoverWrap').hidden = false; paintTextCtl();
   if (modal.openedFor !== posts[pi].id) { undoStack = []; $('mUndo').disabled = true; modal.openedFor = posts[pi].id; setTextOpen(false); textTarget = 'title'; }
   $('modal').classList.add('open'); render();
   if (editWhich) setTimeout(() => startInline(editWhich), 60);
 }
-function closeEditor() { endInline(); modal.p = modal.s = -1; modal.openedFor = null; undoStack = []; $('modal').classList.remove('open'); rebuild(); }
+function closeEditor() { endInline(); softPending = false; modal.p = modal.s = -1; modal.openedFor = null; undoStack = []; $('modal').classList.remove('open'); rebuild(); }
 
 // ----- 캔버스: 글자 클릭 = 직접 입력, 글자 드래그 = 글자 이동, 그 외 드래그 = 사진 위치
 const mc = $('mCanvas');
 const toCanvas = e => { const r = mc.getBoundingClientRect(); return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * mc.height / r.height }; };
 function hitText(pt) {
-  const p = posts[modal.p]; if (modal.s !== 0 || !p || !p._lay) return null;
-  const L = p._lay, inCol = pt.x > L.colX - 30 && pt.x < L.colX + L.colW + 30;
+  const p = posts[modal.p]; if (!p) return null;
+  const T = textOf(p, modal.s); if (!T._lay || !hasText(T)) return null;
+  const L = T._lay, inCol = pt.x > L.colX - 30 && pt.x < L.colX + L.colW + 30;
   if (!inCol) return null;
-  if (p.coverText.trim() && pt.y > L.title.top - 20 && pt.y < L.title.top + L.title.h + 12) return 'title';
-  if ((p.subText || '').trim() && pt.y > L.sub.top - 12 && pt.y < L.sub.top + L.sub.h + 20) return 'sub';
+  if (T.coverText.trim() && pt.y > L.title.top - 20 && pt.y < L.title.top + L.title.h + 12) return 'title';
+  if ((T.subText || '').trim() && pt.y > L.sub.top - 12 && pt.y < L.sub.top + L.sub.h + 20) return 'sub';
   return null;
 }
 mc.addEventListener('pointerdown', e => {
@@ -1128,7 +1145,7 @@ mc.addEventListener('pointermove', e => {
   if (!drag.moved) { drag.moved = true; snap(); }
   drag.x = e.clientX; drag.y = e.clientY;
   if (drag.target !== 'photo') {
-    const st = posts[modal.p].st;
+    const st = curT().st;
     st.offX = Math.round(Math.max(-500, Math.min(500, (st.offX || 0) + dx)));
     st.offY = Math.round(Math.max(-1000, Math.min(1000, (st.offY || 0) + dy)));
   } else {
@@ -1149,8 +1166,9 @@ mc.addEventListener('pointerup', () => {
 let inlineWhich = null;
 const inl = $('mInline');
 function placeInline() {
-  const p = posts[modal.p]; if (!p || !p._lay || !inlineWhich) return;
-  const L = p._lay, b = L[inlineWhich], k = mc.clientWidth / W;
+  const p = posts[modal.p]; if (!p || !inlineWhich) return;
+  const T = curT(); if (!T._lay) return;
+  const L = T._lay, b = L[inlineWhich], k = mc.clientWidth / W;
   inl.style.left = (L.colX * k) + 'px';
   inl.style.top = (b.top * k) + 'px';
   inl.style.width = (L.colW * k) + 'px';
@@ -1163,26 +1181,28 @@ function placeInline() {
   inl.style.height = Math.max(b.lh * k, inl.scrollHeight) + 'px';
 }
 function startInline(which) {
-  const p = posts[modal.p]; if (!p || modal.s !== 0) return;
-  if (!p._lay) render();
+  const p = posts[modal.p]; if (!p) return;
+  const T = curT();
+  if (!T._lay) render();
   snap();
-  inlineWhich = which; p._hide = which;
+  inlineWhich = which; T._hide = which;
   if (textTarget !== which) setTarget(which);
-  inl.value = which === 'title' ? p.coverText : (p.subText || '');
+  inl.value = which === 'title' ? T.coverText : (T.subText || '');
   inl.hidden = false; render();
   requestAnimationFrame(() => { placeInline(); inl.focus(); inl.setSelectionRange(inl.value.length, inl.value.length); });
 }
 function endInline() {
   if (!inlineWhich) return;
   const p = posts[modal.p];
-  if (p) { p._hide = null; }
+  if (p) { curT()._hide = null; }
   inlineWhich = null; inl.hidden = true;
   paintTextCtl(); syncSidebar(); render();
 }
 inl.addEventListener('input', () => {
   const p = posts[modal.p]; if (!p) return;
-  if (inlineWhich === 'title') p.coverText = inl.value; else p.subText = inl.value;
-  $('mCover').value = p.coverText; $('mSub').value = p.subText || '';
+  const T = curT();
+  if (inlineWhich === 'title') T.coverText = inl.value; else T.subText = inl.value;
+  $('mCover').value = T.coverText; $('mSub').value = T.subText || '';
   renderNow().then(placeInline);
 });
 inl.addEventListener('blur', () => setTimeout(endInline, 0));
@@ -1193,11 +1213,11 @@ inl.addEventListener('keydown', e => {
 
 function setZoom(z) { const sl = curSlide(); sl.zoom = Math.max(1, Math.min(2.5, z)); $('mZoom').value = sl.zoom; $('mZoomOut').textContent = Math.round(sl.zoom * 100) + '%'; render(); }
 $('mZoom').oninput = e => { snapOnce(); setZoom(+e.target.value); };
-$('mCover').oninput = e => { snapOnce(); posts[modal.p].coverText = e.target.value; syncSidebar(); render(); };
+$('mCover').oninput = e => { snapOnce(); curT().coverText = e.target.value; syncSidebar(); render(); };
 $('mReset').onclick = () => {
   snap();
   const sl = curSlide(); sl.panX = sl.panY = 0;
-  if (modal.s === 0) { const st = posts[modal.p].st; st.offX = st.offY = 0; st.textPos = 'bottom'; }
+  { const st = curT().st; st.offX = st.offY = 0; st.textPos = 'bottom'; }
   setZoom(1);
 };
 $('mClose').onclick = closeEditor;
@@ -1309,7 +1329,7 @@ $('lang').value = S.lang;
 $('lang').onchange = e => {
   S.lang = e.target.value; save();
   const font = DEFAULT_FONT[S.lang];
-  posts.forEach(p => p.st.font = font); saveStyle({ ...lastStyle, font });
+  posts.forEach(p => allTexts(p).forEach(t => { t.st.font = font; })); saveStyle({ ...lastStyle, font });
   rebuild();
 };
 
@@ -1777,7 +1797,8 @@ function postMeta(p) {
     owner: user ? user.uid : '', kind: p.kind || 'post', video: p.video || null, coverT: p.coverT || 0,
     account: acctOf(p) || null, date: p.date, day: dayIdxOf(p.date), order: p.order, coverText: p.coverText, subText: p.subText || '', caption: p.caption,
     st: p.st, active: p.active, source: p.source || '', done: !!p.done,
-    slides: p.slides.map(sl => ({ id: sl.id, use: sl.use, panX: sl.panX, panY: sl.panY, zoom: sl.zoom,
+    slides: p.slides.map((sl, i) => ({ id: sl.id, use: sl.use, panX: sl.panX, panY: sl.panY, zoom: sl.zoom,
+      ...(i > 0 && sl.st ? { coverText: sl.coverText || '', subText: sl.subText || '', st: sl.st } : {}),
       has: ['orig', 'clean', 'regen'].filter(v => sl[v]), cleanManual: !!sl.cleanManual })),
     caps: p.capImgs.map(imgId)
   };
@@ -1859,6 +1880,7 @@ async function postFromMeta(m, mine) {
     sl.id = s.id; sl.clean = map[`${s.id}_clean`] || null; sl.regen = map[`${s.id}_regen`] || null;
     sl.cleanManual = !!s.cleanManual; sl.use = sl[s.use] ? s.use : 'orig'; sl.img = sl[sl.use];
     sl.panX = s.panX || 0; sl.panY = s.panY || 0; sl.zoom = s.zoom || 1;
+    if (s.st) { sl.coverText = s.coverText || ''; sl.subText = s.subText || ''; sl.st = { ...STYLE_DEFAULT, ...s.st }; }
     return sl;
   }).filter(Boolean);
   if (!slides.length) return null;
@@ -1942,15 +1964,16 @@ async function runPool(list, k, fn) {
     while (list.length) { const m = list.shift(); try { await fn(m); } catch (e) { console.error(e); } }
   }));
 }
-let softTimer = 0;
-function softRefresh() {   // 불러오는 중 화면 갱신 (편집·입력 중이면 잠시 미룸)
+let softTimer = 0, softPending = false;
+function softRefresh() {   // 불러오는 중 화면 갱신 (편집·입력 중이면 끝날 때까지 미룸)
   clearTimeout(softTimer);
   softTimer = setTimeout(() => {
     const busy = modal.p >= 0 || /^(TEXTAREA|INPUT|SELECT)$/.test((document.activeElement || {}).tagName || '');
-    if (busy) { paintDayTabs(); softTimer = setTimeout(softRefresh, 1500); return; }
-    rebuild();
+    if (busy) { paintDayTabs(); softPending = true; return; }
+    softPending = false; rebuild();
   }, 250);
 }
+document.addEventListener('focusout', () => { if (softPending && modal.p < 0) setTimeout(softRefresh, 0); });
 function queueOther(m) {
   if (isNowMeta(m)) { upsertOther(m); return; }
   otherQ.push(m); pumpOthers();
