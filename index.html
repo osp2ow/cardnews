@@ -58,6 +58,14 @@ input[type=color]{width:100%;height:40px;border:1px solid var(--line2);border-ra
 .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;gap:12px;flex-wrap:wrap}
 .topbar h2{font-size:15px;margin:0;font-weight:700}
 .topbar .sub{font-size:12px;color:var(--muted);margin-left:8px;font-weight:500}
+.newpost{border:1px dashed var(--line2);border-radius:18px;min-height:380px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--muted);cursor:pointer;text-align:center;padding:20px;transition:border-color .15s,color .15s,background .15s}
+.newpost b{font-size:46px;font-weight:200;line-height:1}
+.newpost span{font-size:15px;font-weight:700;color:var(--text)}
+.newpost small{font-size:12px;line-height:1.5}
+.newpost:hover,.newpost.drop{border-color:#777;color:#ccc;background:#0d0d0d}
+.newpost.drop{border-color:#4a9eff}
+.empty{cursor:pointer}
+.empty:hover{border-color:#666}
 .empty{border:1px dashed var(--line2);border-radius:16px;height:34vh;min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);gap:14px;text-align:center;padding:20px}
 .empty .t{letter-spacing:.25em;font-size:12px}
 .dropping{outline:2px dashed #888;outline-offset:6px;border-radius:12px}
@@ -254,6 +262,7 @@ textarea.inline{position:absolute;margin:0;padding:0;border:0;border-radius:0;mi
     <button class="btn" id="btnClearDone" hidden></button>
     <input type="file" id="fileImgs" accept="image/*,.png,.PNG,.jpg,.jpeg,.webp,.gif,.bmp,.heic" multiple hidden>
     <input type="file" id="fileSwap" accept="image/*,.png,.PNG,.jpg,.jpeg,.webp,.gif,.bmp,.heic" hidden>
+    <input type="file" id="fileNew" multiple hidden>
     <input type="file" id="fileAdd" accept="image/*,.png,.PNG,.jpg,.jpeg,.webp,.gif,.bmp,.heic" multiple hidden>
   </div>
 
@@ -310,7 +319,7 @@ textarea.inline{position:absolute;margin:0;padding:0;border:0;border-radius:0;mi
   </div>
   <div class="daytabs" id="dayTabs"></div>
   <div class="sechead" id="mineHead"></div>
-  <div id="empty" class="empty">
+  <div id="empty" class="empty" title="눌러서 새 게시물 만들기">
     <div style="font-size:30px;opacity:.6">⧉</div>
     <div class="t">NO ITEMS TO PROCESS</div>
     <div style="font-size:13px" id="emptyDay"></div>
@@ -755,6 +764,18 @@ async function decodeFiles(files) {
   return ok;
 }
 // 사진 1장 = 게시물 1개
+// [+ 새 게시물]: 고른 사진 여러 장을 '게시물 1개'의 여러 장으로 (릴스 탭이면 동영상)
+async function addOnePost(files) {
+  if (curKind === 'reel') return addReels(files);
+  const imgs = await decodeFiles(files);
+  if (!imgs.length) return;
+  posts.push({ id: uid(), account: acct() ? acct().id : null, date: curDate, day: dayIdxOf(curDate), order: Date.now(), done: false,
+    coverText: '', subText: '', caption: '', capImgs: [], st: { ...STYLE_DEFAULT, ...lastStyle, ...POS_RESET }, open: false,
+    slides: imgs.map(img => makeSlide(img)), active: 0 });
+  selIdx = posts.length - 1;
+  rebuild();
+  toast(`${dateLabel(curDate)}에 새 게시물 추가됨 (${imgs.length}장)`);
+}
 async function addPosts(files) {
   const imgs = await decodeFiles(files);
   if (!imgs.length) return;
@@ -1094,6 +1115,22 @@ function restoreStrip(p) {
     p._thumbScroll = strip.scrollLeft;
   }
 }
+function pickNewPost() {
+  const f = $('fileNew');
+  f.accept = curKind === 'reel' ? 'video/*,.mp4,.mov,.m4v,.webm' : 'image/*,.png,.PNG,.jpg,.jpeg,.webp,.gif,.bmp,.heic';
+  f.multiple = curKind !== 'reel';
+  f.click();
+}
+function newPostTile() {
+  const reel = curKind === 'reel';
+  const t = document.createElement('div'); t.className = 'newpost' + (reel ? ' reel' : '');
+  t.innerHTML = `<b>+</b><span>새 ${reel ? '릴스' : '게시물'}</span><small>${reel ? '동영상 선택' : '사진 여러 장을 고르면<br>한 게시물에 순서대로 들어가요'}</small>`;
+  t.onclick = pickNewPost;
+  t.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); t.classList.add('drop'); });
+  t.addEventListener('dragleave', () => t.classList.remove('drop'));
+  t.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); t.classList.remove('drop'); $('main').classList.remove('dropping'); addOnePost(e.dataTransfer.files); });
+  return t;
+}
 function rebuild() {
   const mine = posts.map((p, pi) => [p, pi]).filter(([p]) => vis(p)).sort((a, b) => (a[0].order || 0) - (b[0].order || 0));
   if (!posts[selIdx] || !vis(posts[selIdx])) selIdx = mine.length ? mine[0][1] : -1;
@@ -1101,7 +1138,7 @@ function rebuild() {
   setHead($('mineHead'), myLabel(), `${dateLabel(curDate)} · ${mine.length}개`);
   $('empty').hidden = mine.length > 0;
   $('emptyDay').textContent = `${dateLabel(curDate)}에 만든 ${word}가 없어요`;
-  $('emptyHint').textContent = curKind === 'reel' ? '동영상을 업로드하거나 끌어다 놓으세요 (MP4 권장, 80MB 이하)' : '이미지를 업로드하거나, 끌어다 놓거나, 캡처 후 붙여넣기(Ctrl+V) 하세요';
+  $('emptyHint').textContent = curKind === 'reel' ? '여기를 눌러 새 릴스 만들기 · 동영상을 끌어다 놓아도 돼요 (MP4 권장, 80MB 이하)' : '여기를 눌러 새 게시물 만들기 (사진 여러 장 → 한 게시물) · 끌어다 놓거나 붙여넣기(Ctrl+V)도 돼요';
   const nSlides = mine.reduce((a, [p]) => a + p.slides.length, 0);
   $('count').textContent = curKind === 'reel' ? `${dateLabel(curDate)} 내 릴스 ${mine.length}개` : `${dateLabel(curDate)} 내 게시물 ${mine.length}개 · ${nSlides}장`;
   $('btnZip').disabled = !mine.length;
@@ -1110,6 +1147,7 @@ function rebuild() {
   $('btnClearDone').hidden = !nDone; $('btnClearDone').textContent = `✓ 업로드 완료한 게시물 정리 (${nDone})`;
   const wrap = $('posts'); wrap.innerHTML = ''; wrap.classList.toggle('reels', curKind === 'reel');
   mine.forEach(([p, pi]) => { wrap.appendChild(buildCard(p, pi, false)); restoreStrip(p); });
+  if (mine.length) wrap.appendChild(newPostTile());
   syncSidebar();
   renderOthers();
 }
@@ -1269,7 +1307,8 @@ $('mView').addEventListener('drop', e => { e.preventDefault(); $('mView').style.
 function openEditor(pi, si, editWhich) {
   modal.p = pi; modal.s = si; const sl = curSlide(); if (!sl) return;
   const reel = posts[pi].kind === 'reel';
-  mc.height = reel ? RH : 1350; $('mView').style.aspectRatio = reel ? '9/16' : '4/5';
+  mc.height = reel ? RH : 1350;
+  $('mView').style.aspectRatio = mc.style.aspectRatio = reel ? '9/16' : '4/5';   // 화면에 보이는 비율도 캔버스 크기와 맞춤
   $('mReelWrap').hidden = !reel; $('mDelImg').hidden = reel;
   $('mDown').textContent = reel ? '커버 다운로드' : '사진 다운로드';
   if (reel) { const p = posts[pi]; $('mCoverT').max = Math.max(0.1, (p.video && p.video.dur) || 1); $('mCoverT').value = p.coverT || 0; $('mCoverTOut').textContent = (p.coverT || 0).toFixed(1) + '초'; }
@@ -1525,6 +1564,8 @@ $('lang').onchange = e => {
 $('btnUpload').onclick = () => $('fileImgs').click();
 $('fileImgs').onchange = e => { (curKind === 'reel' ? addReels : addPosts)(e.target.files); e.target.value = ''; };
 $('fileSwap').onchange = e => { if (swapTarget) swapImage(swapTarget.pi, swapTarget.si, e.target.files); e.target.value = ''; };
+$('fileNew').onchange = e => { addOnePost(e.target.files); e.target.value = ''; };
+$('empty').onclick = () => { if (!loadingCloud) pickNewPost(); };
 $('fileAdd').onchange = e => { if (addTarget >= 0) addSlides(addTarget, e.target.files); e.target.value = ''; };
 $('btnClearDone').onclick = () => {
   const n = posts.filter(p => p.done).length; if (!n) return;
