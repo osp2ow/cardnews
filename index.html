@@ -348,6 +348,8 @@ textarea.inline{position:absolute;margin:0;padding:0;border:0;border-radius:0;mi
       <div id="mCoverWrap" hidden>
         <div class="lbl" id="mCoverLbl">표지 문구 <span>*별표* = 강조색</span></div>
         <textarea id="mCover" style="min-height:80px" placeholder="텍스트를 입력하세요"></textarea>
+        <div class="lbl">글 상자 위치 <span>미리보기에서 글자를 끌어 자유롭게 옮길 수도 있어요</span></div>
+        <div class="seg" id="mPos"><button data-val="top">상단</button><button data-val="center">중간</button><button data-val="bottom">하단</button></div>
         <button class="btn" id="mTextToggle" style="margin-top:10px">글자 편집 <span id="mTextArrow">▾</span></button>
         <div id="mTextBody" class="textbody" hidden>
         <div class="lbl">수정할 글자</div>
@@ -520,7 +522,7 @@ function wrapLines(ctx, paras, maxW) {
   }
   return lines;
 }
-function drawCoverText(ctx, post) {
+function drawCoverText(ctx, post, beforeDraw) {
   const st = { ...STYLE_DEFAULT, ...post.st }, f = fontOf(st.font), size = st.fontSize, subSize = st.subSize;
   const boxW = W * st.boxW / 100, PAD = (W - boxW) / 2;
   const fs = fontOf(st.subFont || st.font);
@@ -541,6 +543,7 @@ function drawCoverText(ctx, post) {
   const divGap = st.divider ? 34 : 0;
   const blockH = tH + gap + sH + divGap;
   const y0 = (st.textPos === 'top' ? 190 : st.textPos === 'center' ? (H - blockH) / 2 : H - 170 - blockH) + st.offY;
+  if (beforeDraw) beforeDraw(y0 + blockH / 2);   // 글자 위치가 정해진 뒤, 글자 아래에 어둡게 깔기
   let minX = W, maxX = 0;
   const drawLines = (lines, font, sz, lh, top, color, accent = st.accent, tr = st.tracking) => {
     ctx.font = font; spacing(sz, tr);
@@ -575,10 +578,13 @@ function drawCoverText(ctx, post) {
     title: { top: y0, h: Math.max(tH, tlh), lh: tlh, size, font: f.id, w: titleW, color: st.textColor, tr: st.tracking },
     sub: { top: y0 + tH + (hasTitle ? st.subGap : 0), h: Math.max(sH, slh), lh: slh, size: subSize, font: fs.id, w: subW, color: st.subColor, tr: subTrack, has: hasSub } };
 }
-function drawOverlay(ctx, st) {
+// 배경 어둡게: 글자가 있는 쪽(위/가운데/아래)을 어둡게. 글자를 끌어 옮기면 그 위치를 따라감
+function drawOverlay(ctx, st, centerY) {
   const a = st.overlay; if (a <= 0) return;
-  if (st.textPos === 'center') { ctx.fillStyle = `rgba(0,0,0,${a * 0.55})`; ctx.fillRect(0, 0, W, H); return; }
-  const top = st.textPos === 'top';
+  let pos = st.textPos || 'bottom';
+  if (centerY != null && (st.offX || st.offY)) pos = centerY < H * 0.38 ? 'top' : centerY > H * 0.62 ? 'bottom' : 'center';
+  if (pos === 'center') { ctx.fillStyle = `rgba(0,0,0,${a * 0.55})`; ctx.fillRect(0, 0, W, H); return; }
+  const top = pos === 'top';
   const g = top ? ctx.createLinearGradient(0, H * 0.6, 0, 0) : ctx.createLinearGradient(0, H * 0.4, 0, H);
   g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${a})`);
   ctx.fillStyle = g;
@@ -626,7 +632,7 @@ function drawSlideInner(ctx, sl, post, isCover) {
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   }
   const T = textOf(post, post.slides ? post.slides.indexOf(sl) : 0);
-  if (hasText(T)) { drawOverlay(ctx, T.st); drawCoverText(ctx, T); }
+  if (hasText(T)) drawCoverText(ctx, T, cy => drawOverlay(ctx, T.st, cy));
   if (hasLogo() && (S.logoAll || isCover)) drawLogo(ctx);
 }
 
@@ -1159,6 +1165,11 @@ $('mTarget').addEventListener('click', e => { const b = e.target.closest('button
 $('mFont').addEventListener('change', () => { snap(); setStyle(tKey('font'), $('mFont').value); });
 $('mColor').addEventListener('input', () => { snapOnce(); setStyle(tKey('color'), $('mColor').value); });
 $('mAccent').addEventListener('input', () => { snapOnce(); setStyle(tKey('accent'), $('mAccent').value); });
+$('mPos').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  snap(); const st = mStyle(); st.textPos = b.dataset.val; st.offX = 0; st.offY = 0;   // 템플릿 위치로 정렬 (끌어 옮긴 위치는 초기화)
+  saveStyle(st); paintTextCtl(); render();
+});
 $('mAlign').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; snap(); setStyle('align', b.dataset.val); paintTextCtl(); });
 $('mShadow').addEventListener('change', () => { snap(); setStyle('shadow', $('mShadow').checked); });
 $('mDivider').addEventListener('change', () => { snap(); setStyle('divider', $('mDivider').checked); });
@@ -1192,6 +1203,8 @@ function paintTextCtl() {
   $('mFont').value = styleVal(tKey('font'));
   $('mColor').value = styleVal(tKey('color')); $('mAccent').value = styleVal(tKey('accent'));
   [...$('mAlign').children].forEach(b => b.classList.toggle('on', b.dataset.val === st.align));
+  const moved = st.offX || st.offY;
+  [...$('mPos').children].forEach(b => b.classList.toggle('on', !moved && b.dataset.val === (st.textPos || 'bottom')));
   $('mShadow').checked = !!st.shadow; $('mDivider').checked = !!st.divider;
   document.querySelectorAll('#mCoverWrap .stp').forEach(el => el._show());
 }
@@ -1259,8 +1272,14 @@ mc.addEventListener('pointermove', e => {
   drag.x = e.clientX; drag.y = e.clientY;
   if (drag.target !== 'photo') {
     const st = curT().st;
-    st.offX = Math.round(Math.max(-500, Math.min(500, (st.offX || 0) + dx)));
-    st.offY = Math.round(Math.max(-1000, Math.min(1000, (st.offY || 0) + dy)));
+    const T = curT(), b = T._tb || { x: 0, y: 0, w: 0, h: 0 }, Hc = mc.height;
+    let nx = (st.offX || 0) + dx, ny = (st.offY || 0) + dy;
+    // 화면 안 어디든 이동 가능 (글 상자가 사진 밖으로 잘려 나가지 않게만 제한)
+    const bx = b.x + (nx - (st.offX || 0)), by = b.y + (ny - (st.offY || 0)), m = 20;
+    if (b.w < W - 2 * m) { if (bx < m) nx += m - bx; if (bx + b.w > W - m) nx -= bx + b.w - (W - m); }
+    if (b.h < Hc - 2 * m) { if (by < m) ny += m - by; if (by + b.h > Hc - m) ny -= by + b.h - (Hc - m); }
+    st.offX = Math.round(nx); st.offY = Math.round(ny);
+    if (drag.moved && !drag.posCleared) { drag.posCleared = true; [...$('mPos').children].forEach(x => x.classList.remove('on')); }
   } else {
     if (!sl.img) { render(); return; }
     const prevH = H; H = mc.height; const r = imgRect(sl); H = prevH;
@@ -1330,7 +1349,7 @@ $('mCover').oninput = e => { snapOnce(); curT().coverText = e.target.value; sync
 $('mReset').onclick = () => {
   snap();
   const sl = curSlide(); sl.panX = sl.panY = 0;
-  { const st = curT().st; st.offX = st.offY = 0; st.textPos = 'bottom'; }
+  { const st = curT().st; st.offX = st.offY = 0; st.textPos = 'bottom'; paintTextCtl(); }
   setZoom(1);
 };
 $('mClose').onclick = closeEditor;
@@ -1763,7 +1782,7 @@ function drawReelOverlay(p) {
   const ctx = p.ovl.getContext('2d'), prev = H; H = RH;
   try {
     ctx.clearRect(0, 0, W, H);
-    if (p.coverText.trim() || (p.subText || '').trim()) { drawOverlay(ctx, p.st); drawCoverText(ctx, p); }
+    if (p.coverText.trim() || (p.subText || '').trim()) drawCoverText(ctx, p, cy => drawOverlay(ctx, p.st, cy));
     if (hasLogo()) drawLogo(ctx);
   } finally { H = prev; }
 }
