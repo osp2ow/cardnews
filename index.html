@@ -391,7 +391,8 @@ textarea.inline{position:absolute;margin:0;padding:0;border:0;border-radius:0;mi
           <div><div class="lbl">&nbsp;</div><label class="check" style="margin-top:8px"><input type="checkbox" id="mShadow"> 글자 그림자</label></div>
         </div>
         <label class="check"><input type="checkbox" id="mDivider"> 부제목 아래 구분선</label>
-        <button class="btn" id="mApplyAll" style="margin-top:12px;height:38px;font-size:13px">이 스타일을 모든 게시물에 적용</button>
+        <button class="btn" id="mApplyNext" style="margin-top:12px;height:38px;font-size:13px">이 장 스타일을 뒷장 모두에 적용</button>
+        <button class="btn" id="mApplyAll" style="margin-top:8px;height:38px;font-size:13px">이 스타일을 모든 게시물에 적용</button>
         <button class="btn" id="mSetDefault" style="margin-top:8px;height:38px;font-size:13px" hidden>⭐ 표지 문구 스타일을 기본값으로 저장</button>
         </div>
       </div>
@@ -739,7 +740,8 @@ function textOf(p, si) {
   const sl = p.slides[si];
   if (sl.coverText == null) sl.coverText = '';
   if (sl.subText == null) sl.subText = '';
-  if (!sl.st) sl.st = { ...p.st, ...POS_RESET };
+  // 직접 고친 적 없는 장(_inh)은 앞장 스타일을 그대로 따라감: 2장은 표지에서(위치는 기본), 3장부터는 바로 앞장에서(위치 포함)
+  if (!sl.st || sl._inh) { sl.st = si === 1 ? { ...p.st, ...POS_RESET } : { ...textOf(p, si - 1).st }; sl._inh = true; }
   return sl;
 }
 // (x, y)가 제목/부제목 글자 위인지
@@ -825,13 +827,13 @@ function removePost(pi) {
 function slideTexts(p) {
   return p.slides.map((sl, i) => i === 0
     ? { coverText: p.coverText, subText: p.subText || '', st: p.st }
-    : { coverText: sl.coverText ?? '', subText: sl.subText ?? '', st: sl.st || { ...p.st, offX: 0, offY: 0 } });
+    : { coverText: sl.coverText ?? '', subText: sl.subText ?? '', st: (sl._inh || !sl.st) ? null : sl.st, eff: { ...textOf(p, i).st } });
 }
 function applyTexts(p, texts) {
   texts.forEach((t, i) => {
     const sl = p.slides[i];
-    if (i === 0) { p.coverText = t.coverText; p.subText = t.subText; p.st = t.st; sl.coverText = sl.subText = null; sl.st = null; }
-    else { sl.coverText = t.coverText; sl.subText = t.subText; sl.st = t.st; }
+    if (i === 0) { p.coverText = t.coverText; p.subText = t.subText; p.st = t.st || t.eff; sl.coverText = sl.subText = null; sl.st = null; sl._inh = false; }
+    else { sl.coverText = t.coverText; sl.subText = t.subText; sl.st = t.st; sl._inh = !t.st; }
   });
 }
 function moveSlideTo(p, from, to) {
@@ -1180,7 +1182,7 @@ function curSlide() { return posts[modal.p]?.slides[modal.s]; }
 let undoStack = [];
 function postState() {
   const p = posts[modal.p];
-  return JSON.stringify({ coverText: p.coverText, subText: p.subText || '', st: p.st, slides: p.slides.map(sl => [sl.panX, sl.panY, sl.zoom, sl.coverText ?? null, sl.subText ?? null, sl.st || null]) });
+  return JSON.stringify({ coverText: p.coverText, subText: p.subText || '', st: p.st, slides: p.slides.map(sl => [sl.panX, sl.panY, sl.zoom, sl.coverText ?? null, sl.subText ?? null, sl._inh ? null : (sl.st || null)]) });
 }
 function snap() {
   if (modal.p < 0) return;
@@ -1200,7 +1202,7 @@ function undo() {
   }
   const st = JSON.parse(top);
   p.coverText = st.coverText; p.subText = st.subText; p.st = st.st;
-  st.slides.forEach((v, i) => { const sl = p.slides[i]; if (sl) { [sl.panX, sl.panY, sl.zoom] = v; if (i > 0 && v.length > 3) { sl.coverText = v[3] ?? ''; sl.subText = v[4] ?? ''; sl.st = v[5] || null; } } });
+  st.slides.forEach((v, i) => { const sl = p.slides[i]; if (sl) { [sl.panX, sl.panY, sl.zoom] = v; if (i > 0 && v.length > 3) { sl.coverText = v[3] ?? ''; sl.subText = v[4] ?? ''; sl.st = v[5] || null; sl._inh = !v[5]; } } });
   const sl = curSlide();
   paintTextCtl();
   $('mZoom').value = sl.zoom; $('mZoomOut').textContent = Math.round(sl.zoom * 100) + '%';
@@ -1216,6 +1218,7 @@ document.addEventListener('keydown', e => {
 // 편집 화면의 글자 스타일 조절 (− / + / 직접 입력)
 // '표지 문구' / '부제목' 중 선택한 쪽에만 적용되는 항목은 data-t, 공통 항목은 data-k
 const mStyle = () => curT().st;
+const mStyleW = () => { const T = curT(); if (T._inh) { T.st = { ...T.st }; T._inh = false; } return T.st; };
 let textTarget = 'title';
 const TKEY = {   // [표지 문구 키, 부제목 키, 부제목 값이 없을 때 따라갈 키]
   size: ['fontSize', 'subSize'], tracking: ['tracking', 'subTracking', 'tracking'], lineH: ['lineH', 'subLineH'],
@@ -1230,7 +1233,7 @@ function styleVal(key) {
   const row = Object.values(TKEY).find(r => r[1] === key);
   return row && row[2] ? st[row[2]] : STYLE_DEFAULT[key];
 }
-function setStyle(k, v) { const st = mStyle(); st[k] = v; saveStyle(st); render(); }
+function setStyle(k, v) { const st = mStyleW(); st[k] = v; saveStyle(st); render(); }
 document.querySelectorAll('#mCoverWrap .stp').forEach(el => {
   const keyOf = () => el.dataset.t ? tKey(el.dataset.t) : el.dataset.k;
   const step = +el.dataset.step, min = +el.dataset.min, max = +el.dataset.max;
@@ -1255,12 +1258,12 @@ $('mColor').addEventListener('input', () => { snapOnce(); setStyle(tKey('color')
 $('mAccent').addEventListener('input', () => { snapOnce(); setStyle(tKey('accent'), $('mAccent').value); });
 $('mPos').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
-  snap(); const st = mStyle(); st.textPos = b.dataset.val; st.offX = 0; st.offY = 0;   // 템플릿 위치로 정렬 (끌어 옮긴 위치는 초기화)
+  snap(); const st = mStyleW(); st.textPos = b.dataset.val; st.offX = 0; st.offY = 0;   // 템플릿 위치로 정렬 (끌어 옮긴 위치는 초기화)
   saveStyle(st); paintPosCtl(); render();
 });
 $('mSubPos').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
-  snap(); const st = mStyle(); st.subPos = b.dataset.val || null; st.subOffX = 0; st.subOffY = 0;
+  snap(); const st = mStyleW(); st.subPos = b.dataset.val || null; st.subOffX = 0; st.subOffY = 0;
   saveStyle(st); paintPosCtl(); render();
 });
 function paintPosCtl() {
@@ -1295,9 +1298,17 @@ $('mSetDefault').onclick = async () => {
   } catch (e) { toast('저장 실패: ' + (e.code || e.message)); }
 };
 function paintDefaultBtn() { $('mSetDefault').hidden = !(user && (user.email || '').toLowerCase() === DEFAULT_ADMIN); }
+$('mApplyNext').onclick = () => {
+  const p = posts[modal.p], s0 = modal.s; if (!p || p.kind === 'reel') return;
+  snap(); mStyleW();
+  const later = p.slides.slice(s0 + 1);
+  later.forEach(sl => { sl.st = null; sl._inh = true; });   // 뒷장은 이 장을 따라가게 (나중에 추가하는 장도 자동으로)
+  render();
+  toast(later.length ? `${s0 + 2}장부터 끝까지 이 장 스타일을 따라가요 · 새로 추가하는 장도 자동 적용` : '이후에 추가하는 장은 이 장 스타일로 시작해요');
+};
 $('mApplyAll').onclick = () => {
   const src = mStyle(), me = curT();
-  posts.forEach(q => allTexts(q).forEach(t => { if (t !== me) t.st = { ...src, offX: t.st.offX || 0, offY: t.st.offY || 0, subOffX: t.st.subOffX || 0, subOffY: t.st.subOffY || 0 }; }));
+  posts.forEach(q => allTexts(q).forEach(t => { if (t !== me) t._inh = false; if (t !== me) t.st = { ...src, offX: t.st.offX || 0, offY: t.st.offY || 0, subOffX: t.st.subOffX || 0, subOffY: t.st.subOffY || 0 }; }));
   render(); toast('모든 게시물에 적용했어요');
 };
 function paintTextCtl() {
@@ -1346,6 +1357,7 @@ function openEditor(pi, si, editWhich) {
   $('mZoom').value = sl.zoom; $('mZoomOut').textContent = Math.round(sl.zoom * 100) + '%';
   textTarget = 'title';
   $('mCoverWrap').hidden = false; paintTextCtl(); paintDefaultBtn();
+  $('mApplyNext').hidden = si === 0 || posts[pi].kind === 'reel';
   if (modal.openedFor !== posts[pi].id) { undoStack = []; $('mUndo').disabled = true; modal.openedFor = posts[pi].id; setTextOpen(false); textTarget = 'title'; }
   $('modal').classList.add('open'); render();
   if (editWhich) setTimeout(() => startInline(editWhich), 60);
@@ -1376,7 +1388,7 @@ mc.addEventListener('pointermove', e => {
   if (!drag.moved) { drag.moved = true; snap(); }
   drag.x = e.clientX; drag.y = e.clientY;
   if (drag.target !== 'photo') {
-    const T = curT(), st = T.st, Hc = mc.height;
+    const T = curT(), st = mStyleW(), Hc = mc.height;
     const subAlone = drag.target === 'sub' && st.subPos && T._sb;   // 따로 배치된 부제목을 잡았으면 부제목만
     const kx = subAlone ? 'subOffX' : 'offX', ky = subAlone ? 'subOffY' : 'offY';
     const b = (subAlone ? T._sb : T._tb) || { x: 0, y: 0, w: 0, h: 0 };
@@ -1456,7 +1468,7 @@ $('mCover').oninput = e => { snapOnce(); curT().coverText = e.target.value; sync
 $('mReset').onclick = () => {
   snap();
   const sl = curSlide(); sl.panX = sl.panY = 0;
-  { const st = curT().st; st.offX = st.offY = 0; st.textPos = 'bottom'; st.subPos = null; st.subOffX = st.subOffY = 0; paintTextCtl(); }
+  { const st = mStyleW(); st.offX = st.offY = 0; st.textPos = 'bottom'; st.subPos = null; st.subOffX = st.subOffY = 0; paintTextCtl(); }
   setZoom(1);
 };
 $('mClose').onclick = closeEditor;
@@ -2055,7 +2067,7 @@ function postMeta(p) {
     account: acctOf(p) || null, date: p.date, day: dayIdxOf(p.date), order: p.order, coverText: p.coverText, subText: p.subText || '', caption: p.caption,
     st: p.st, active: p.active, source: p.source || '', done: !!p.done,
     slides: p.slides.map((sl, i) => ({ id: sl.id, use: sl.use, panX: sl.panX, panY: sl.panY, zoom: sl.zoom,
-      ...(i > 0 && sl.st ? { coverText: sl.coverText || '', subText: sl.subText || '', st: sl.st } : {}),
+      ...(i > 0 && (sl.coverText || sl.subText || (sl.st && !sl._inh)) ? { coverText: sl.coverText || '', subText: sl.subText || '', st: sl._inh ? null : (sl.st || null) } : {}),
       has: ['orig', 'clean', 'regen'].filter(v => sl[v]), cleanManual: !!sl.cleanManual })),
     caps: p.capImgs.map(imgId)
   };
@@ -2137,7 +2149,7 @@ async function postFromMeta(m, mine) {
     sl.id = s.id; sl.clean = map[`${s.id}_clean`] || null; sl.regen = map[`${s.id}_regen`] || null;
     sl.cleanManual = !!s.cleanManual; sl.use = sl[s.use] ? s.use : 'orig'; sl.img = sl[sl.use];
     sl.panX = s.panX || 0; sl.panY = s.panY || 0; sl.zoom = s.zoom || 1;
-    if (s.st) { sl.coverText = s.coverText || ''; sl.subText = s.subText || ''; sl.st = { ...STYLE_DEFAULT, ...s.st }; }
+    if (s.st || s.coverText || s.subText) { sl.coverText = s.coverText || ''; sl.subText = s.subText || ''; if (s.st) { sl.st = { ...STYLE_DEFAULT, ...s.st }; sl._inh = false; } }
     return sl;
   }).filter(Boolean);
   if (!slides.length) return null;
@@ -2246,9 +2258,11 @@ function pumpOthers() {
 const acctSig = a => a ? [a.name, a.handle, ...Object.values(LOGO_MAP).map(f => a.logo && a.logo[f]), (a.logo && a.logo.image || '').length].join('|') : '';
 let unsubDefault = null;
 function listenShared() {
-  unsubDefault = col('shared').doc('defaultStyle').onSnapshot(d => {
-    sharedStyle = d.exists && d.data().st ? d.data().st : null;
-  }, e => console.error(e));
+  try {
+    unsubDefault = col('shared').doc('defaultStyle').onSnapshot(d => {
+      sharedStyle = d.exists && d.data().st ? d.data().st : null;
+    }, e => console.error(e));
+  } catch (e) { console.error(e); }
   unsubAccts = col('accounts').onSnapshot(snap => {
     if (snap.metadata && snap.metadata.hasPendingWrites) return;
     const list = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((x, y) => (x.order || 0) - (y.order || 0));
