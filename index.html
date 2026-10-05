@@ -741,7 +741,7 @@ function removeSlide(pi, si) {
   rebuild();
 }
 function rebuildSel() {
-  const mine = posts.map((p, i) => [p, i]).filter(([p]) => vis(p));
+  const mine = posts.map((p, i) => [p, i]).filter(([p]) => vis(p)).sort((a, b) => (a[0].order || 0) - (b[0].order || 0));
   $('posts').querySelectorAll(':scope > .post').forEach((el, k) => el.classList.toggle('sel', mine[k] && mine[k][1] === selIdx));
 }
 function select(pi) {
@@ -770,7 +770,7 @@ let curDate = todayStr();
 let calMonth = curDate.slice(0, 7);
 const vis = p => p.date === curDate && inAcct(p) && inKind(p);
 const countOn = date => [...posts, ...others].filter(p => p.date === date && inAcct(p) && inKind(p)).length;
-function goDate(d) { curDate = d; calMonth = d.slice(0, 7); selIdx = posts.findIndex(p => p.date === d && inAcct(p) && inKind(p)); rebuild(); }
+function goDate(d) { curDate = d; prioritize(); calMonth = d.slice(0, 7); selIdx = posts.findIndex(p => p.date === d && inAcct(p) && inKind(p)); rebuild(); }
 let others = [];   // 다른 사람 게시물 (보기·다운로드 전용)
 let addTarget = -1;
 
@@ -933,7 +933,7 @@ function renderOthers() {
 }
 
 function rebuild() {
-  const mine = posts.map((p, pi) => [p, pi]).filter(([p]) => vis(p));
+  const mine = posts.map((p, pi) => [p, pi]).filter(([p]) => vis(p)).sort((a, b) => (a[0].order || 0) - (b[0].order || 0));
   if (!posts[selIdx] || !vis(posts[selIdx])) selIdx = mine.length ? mine[0][1] : -1;
   const word = curKind === 'reel' ? '릴스' : '게시물';
   setHead($('mineHead'), myLabel(), `${dateLabel(curDate)} · ${mine.length}개`);
@@ -1403,6 +1403,7 @@ async function applyAcct(noRebuild) {
   await setLogo(a.logo && a.logo.image ? a.logo.image : null);
   applyingAcct = false;
   try { localStorage.setItem('cnm_acct', curAcct); } catch (e) {}
+  if (typeof prioritize === 'function') prioritize();
   if (!noRebuild) { selIdx = -1; rebuild(); }
 }
 function acctChanged() {   // 로고 설정이 바뀌면 현재 계정에 저장
@@ -1552,7 +1553,7 @@ async function loadVideo(p) {
   if (p._loading) return p._loading;
   p._loading = (async () => {
     paintReelProg(p, '영상 불러오는 중…');
-    const docs = await Promise.all([...Array(p.video.n).keys()].map(i => col('videoChunks').doc(`${p.video.id}_${i}`).get()));
+    const docs = await Promise.all([...Array(p.video.n).keys()].map(i => getFast(col('videoChunks').doc(`${p.video.id}_${i}`))));
     if (docs.some(d => !d.exists)) throw new Error('영상 일부가 아직 올라오지 않았어요');
     const blob = new Blob(docs.map(d => d.data().data.toUint8Array()), { type: p.video.type || 'video/mp4' });
     const url = URL.createObjectURL(blob);
@@ -1703,6 +1704,7 @@ function paintKind() {
 $('kindTabs').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.dataset.k === curKind) return;
   curKind = b.dataset.k; try { localStorage.setItem('cnm_kind', curKind); } catch (err) {}
+  prioritize();
   [...posts, ...others].forEach(p => { if (p.vid && !p.vid.paused) p.vid.pause(); });
   selIdx = -1; paintKind(); rebuild();
 });
@@ -1756,7 +1758,7 @@ function setSync(state, msg = '') {
   b.style.color = state === 'error' ? 'var(--danger)' : '';
 }
 // Firestore 문서 1개 한도(1MB) 안에 들어가도록 압축
-function compressImg(img, { max = 2000, png = false } = {}) {
+function compressImg(img, { max = 1440, png = false } = {}) {
   let m = max, q = 0.86;
   for (let i = 0; i < 12; i++) {
     const k = Math.min(1, m / Math.max(iW(img), iH(img)));
@@ -1831,9 +1833,14 @@ async function saveAll() {
   finally { saving = false; if (dirtyAgain) { dirtyAgain = false; scheduleSave(); } }
 }
 
+// 이미지·영상 조각은 한 번 올리면 내용이 바뀌지 않으므로 기기 캐시를 먼저 보고, 없을 때만 서버에서 받음
+async function getFast(ref) {
+  try { const d = await ref.get({ source: 'cache' }); if (d.exists) return d; } catch (e) {}
+  return ref.get();
+}
 async function getImg(id) {
   if (imgCache.has(id)) return imgCache.get(id);
-  const d = await col('images').doc(id).get();
+  const d = await getFast(col('images').doc(id));
   if (!d.exists) return null;
   const im = await loadImg(d.data().data);
   imgCache.set(id, im);
@@ -1867,6 +1874,7 @@ async function postFromMeta(m, mine) {
 
 async function loadCloud() {
   loadingCloud = true; setSync('loading');
+  $('emptyDay').textContent = '작업물을 불러오는 중…'; $('emptyHint').textContent = '';
   try {
     const [setDoc, accSnap, prof, snap] = await Promise.all([
       userCol('meta').doc('settings').get(), col('accounts').get(),
@@ -1889,25 +1897,68 @@ async function loadCloud() {
     }
     await applyAcct(true);
     savedSettings = setDoc.exists ? JSON.stringify(cloudSettings()) : '';
-    const metas = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0));
-    let n = 0;
-    for (const m of metas) {
-      n++; setSync('loading', `${n}/${metas.length}`);
-      if (posts.some(p => p.id === m.id)) continue;
-      const p = await postFromMeta(m, true);
-      if (!p) continue;
-      posts.push(p);
-      savedPosts.set(p.id, JSON.stringify(postMeta(p)));
-    }
-    posts.sort((a, b) => a.order - b.order);
+    const metas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const total = metas.length;
+    const loadOne = async m => {
+      if (posts.some(p => p.id === m.id)) return;
+      const p = await postFromMeta(m, true); if (!p) return;
+      posts.push(p); savedPosts.set(p.id, JSON.stringify(postMeta(p)));
+    };
+    // ① 지금 화면에 보일 것만 먼저
+    pendingMine = metas.filter(m => !isNowMeta(m));
+    await Promise.all(metas.filter(isNowMeta).map(m => loadOne(m).catch(e => console.error(e))));
+    loadingCloud = false; rebuild(); listenShared();
+    // ② 나머지는 뒤에서 (날짜를 바꾸면 그 날짜 것부터)
+    let n = total - pendingMine.length;
+    setSync('loading', `${n}/${total}`);
+    await runPool(pendingMine, 4, async m => { await loadOne(m); n++; setSync('loading', `${n}/${total}`); softRefresh(); });
     expireOldVideos();
-    setSync('saved');
+    setSync('saved'); softRefresh();
   } catch (e) { console.error(e); setSync('error', e.message); toast('불러오기 실패: ' + e.message); }
-  finally { loadingCloud = false; rebuild(); scheduleSave(); }
-  listenShared();
+  finally {
+    if (loadingCloud) { loadingCloud = false; rebuild(); listenShared(); }
+    scheduleSave();
+  }
   if (!nicks[user.uid]) {
     const v = (prompt('사용할 닉네임을 정해주세요 (예: 세혁)') || '').trim();
     if (v) { $('nickInput').value = v; saveNick(v); }
+  }
+}
+// ----- 불러오기 순서 관리
+let pendingMine = [];
+const otherQ = []; let otherRunning = 0;
+function isNowMeta(m) {
+  const date = m.date || legacyDate(m.day);
+  const accId = (m.account && accounts.some(a => a.id === m.account)) ? m.account : (accounts[0] && accounts[0].id);
+  return date === curDate && (m.kind || 'post') === curKind && (!acct() || accId === acct().id);
+}
+function prioritize() {   // 지금 보는 화면의 게시물을 대기열 맨 앞으로
+  const key = m => isNowMeta(m) ? 0 : 1;
+  pendingMine.sort((a, b) => key(a) - key(b));
+  otherQ.sort((a, b) => key(a) - key(b));
+}
+async function runPool(list, k, fn) {
+  await Promise.all([...Array(Math.min(k, list.length))].map(async () => {
+    while (list.length) { const m = list.shift(); try { await fn(m); } catch (e) { console.error(e); } }
+  }));
+}
+let softTimer = 0;
+function softRefresh() {   // 불러오는 중 화면 갱신 (편집·입력 중이면 잠시 미룸)
+  clearTimeout(softTimer);
+  softTimer = setTimeout(() => {
+    const busy = modal.p >= 0 || /^(TEXTAREA|INPUT|SELECT)$/.test((document.activeElement || {}).tagName || '');
+    if (busy) { paintDayTabs(); softTimer = setTimeout(softRefresh, 1500); return; }
+    rebuild();
+  }, 250);
+}
+function queueOther(m) {
+  if (isNowMeta(m)) { upsertOther(m); return; }
+  otherQ.push(m); pumpOthers();
+}
+function pumpOthers() {
+  while (otherRunning < 3 && otherQ.length) {
+    const m = otherQ.shift(); otherRunning++;
+    upsertOther(m).finally(() => { otherRunning--; pumpOthers(); });
   }
 }
 
@@ -1934,7 +1985,7 @@ function listenShared() {
       const m = { id: ch.doc.id, ...ch.doc.data() };
       if (!user || m.owner === user.uid) return;
       if (ch.type === 'removed') { others = others.filter(p => p.id !== m.id); scheduleOthers(); }
-      else upsertOther(m);
+      else queueOther(m);
     });
   }, e => console.error(e));
 }
