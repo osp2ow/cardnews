@@ -852,6 +852,7 @@ function buildCard(p, pi, ro) {
   const cap = el.querySelector('.pcap');
   cap.onclick = e => { e.stopPropagation(); cap.classList.toggle('open'); cap.querySelector('.more').textContent = cap.classList.contains('open') ? '접기' : '더 보기'; };
   const strip = el.querySelector('.pthumbs');
+  strip.addEventListener('scroll', () => { p._thumbScroll = strip.scrollLeft; });
   p.slides.forEach((sl, si) => {
     const t = document.createElement('div'); t.className = 'thumb' + (si === p.active ? ' on' : '');
     t.appendChild(sl.thumb);
@@ -866,7 +867,7 @@ function buildCard(p, pi, ro) {
     t.onclick = e => { e.stopPropagation(); p.active = si; if (ro) renderOthers(); else { selIdx = pi; rebuild(); } };
     strip.appendChild(t);
   });
-  p.el = { name: cap.querySelector('b'), txt: cap.querySelector('.txt'), status: el.querySelector('.pstatus') };
+  p.el = { name: cap.querySelector('b'), txt: cap.querySelector('.txt'), status: el.querySelector('.pstatus'), strip };
   const btns = el.querySelectorAll('.ptools button');
   el.querySelector('[data-a="img"]').onclick = e => { e.stopPropagation(); downloadImages(p); };
   el.querySelector('[data-a="cap"]').onclick = e => { e.stopPropagation(); copyCaption(p); };
@@ -942,11 +943,24 @@ function renderOthers() {
       sec.appendChild(grid);
     }
     wrap.appendChild(sec);
+    list.forEach(restoreStrip);
   });
   paintDayTabs();
   render();
 }
 
+// 카드를 다시 그려도 썸네일 줄이 처음으로 돌아가지 않게 + 고른 장이 보이게
+function restoreStrip(p) {
+  const strip = p.el && p.el.strip; if (!strip || !strip.isConnected) return;
+  if (p._thumbScroll) strip.scrollLeft = p._thumbScroll;
+  const t = strip.children[p.active];
+  if (t && t.offsetWidth) {
+    const l = t.offsetLeft - strip.offsetLeft, r = l + t.offsetWidth;
+    if (l < strip.scrollLeft) strip.scrollLeft = l - 8;
+    else if (r > strip.scrollLeft + strip.clientWidth) strip.scrollLeft = r - strip.clientWidth + 8;
+    p._thumbScroll = strip.scrollLeft;
+  }
+}
 function rebuild() {
   const mine = posts.map((p, pi) => [p, pi]).filter(([p]) => vis(p)).sort((a, b) => (a[0].order || 0) - (b[0].order || 0));
   if (!posts[selIdx] || !vis(posts[selIdx])) selIdx = mine.length ? mine[0][1] : -1;
@@ -962,7 +976,7 @@ function rebuild() {
   const nDone = posts.filter(p => p.done).length;
   $('btnClearDone').hidden = !nDone; $('btnClearDone').textContent = `✓ 업로드 완료한 게시물 정리 (${nDone})`;
   const wrap = $('posts'); wrap.innerHTML = ''; wrap.classList.toggle('reels', curKind === 'reel');
-  mine.forEach(([p, pi]) => wrap.appendChild(buildCard(p, pi, false)));
+  mine.forEach(([p, pi]) => { wrap.appendChild(buildCard(p, pi, false)); restoreStrip(p); });
   syncSidebar();
   renderOthers();
 }
@@ -1060,6 +1074,7 @@ function setTextOpen(open) {
 }
 $('mTextToggle').onclick = () => {
   const open = $('mTextBody').hidden;
+  if (open && inlineWhich !== 'sub') setTarget('title');   // 펼칠 때는 항상 표지 문구부터
   setTextOpen(open);
   if (open && $('mTextBody').scrollIntoView) $('mTextBody').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 };
@@ -1110,6 +1125,7 @@ function openEditor(pi, si, editWhich) {
   if (reel) { const p = posts[pi]; $('mCoverT').max = Math.max(0.1, (p.video && p.video.dur) || 1); $('mCoverT').value = p.coverT || 0; $('mCoverTOut').textContent = (p.coverT || 0).toFixed(1) + '초'; }
   $('mTitle').textContent = `${pi + 1}번 게시물 · ${si + 1}장${si === 0 ? ' (표지)' : ''}`;
   $('mZoom').value = sl.zoom; $('mZoomOut').textContent = Math.round(sl.zoom * 100) + '%';
+  textTarget = 'title';
   $('mCoverWrap').hidden = false; paintTextCtl();
   if (modal.openedFor !== posts[pi].id) { undoStack = []; $('mUndo').disabled = true; modal.openedFor = posts[pi].id; setTextOpen(false); textTarget = 'title'; }
   $('modal').classList.add('open'); render();
