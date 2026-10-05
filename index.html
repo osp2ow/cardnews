@@ -1115,6 +1115,18 @@ function restoreStrip(p) {
     p._thumbScroll = strip.scrollLeft;
   }
 }
+// [+ 새 게시물]: 사진 없이 빈 게시물을 바로 만들고 편집 화면을 열어 글자부터 쓰게 함 (릴스는 동영상 선택)
+function createBlankPost() {
+  if (curKind === 'reel') return pickNewPost();
+  posts.push({ id: uid(), account: acct() ? acct().id : null, date: curDate, day: dayIdxOf(curDate), order: Date.now(), done: false,
+    coverText: '', subText: '', caption: '', capImgs: [], st: { ...STYLE_DEFAULT, ...lastStyle, ...POS_RESET }, open: false,
+    slides: [makeSlide(null)], active: 0 });
+  selIdx = posts.length - 1;
+  rebuild();
+  openEditor(selIdx, 0);
+  setTimeout(() => $('mCover').focus(), 80);
+  toast('새 게시물을 만들었어요 · 사진은 화면을 눌러 넣으면 돼요');
+}
 function pickNewPost() {
   const f = $('fileNew');
   f.accept = curKind === 'reel' ? 'video/*,.mp4,.mov,.m4v,.webm' : 'image/*,.png,.PNG,.jpg,.jpeg,.webp,.gif,.bmp,.heic';
@@ -1124,8 +1136,8 @@ function pickNewPost() {
 function newPostTile() {
   const reel = curKind === 'reel';
   const t = document.createElement('div'); t.className = 'newpost' + (reel ? ' reel' : '');
-  t.innerHTML = `<b>+</b><span>새 ${reel ? '릴스' : '게시물'}</span><small>${reel ? '동영상 선택' : '사진 여러 장을 고르면<br>한 게시물에 순서대로 들어가요'}</small>`;
-  t.onclick = pickNewPost;
+  t.innerHTML = `<b>+</b><span>새 ${reel ? '릴스' : '게시물'}</span><small>${reel ? '동영상 선택' : '글자부터 써도 되고<br>사진을 끌어다 놓아도 돼요'}</small>`;
+  t.onclick = createBlankPost;
   t.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); t.classList.add('drop'); });
   t.addEventListener('dragleave', () => t.classList.remove('drop'));
   t.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); t.classList.remove('drop'); $('main').classList.remove('dropping'); addOnePost(e.dataTransfer.files); });
@@ -1138,7 +1150,7 @@ function rebuild() {
   setHead($('mineHead'), myLabel(), `${dateLabel(curDate)} · ${mine.length}개`);
   $('empty').hidden = mine.length > 0;
   $('emptyDay').textContent = `${dateLabel(curDate)}에 만든 ${word}가 없어요`;
-  $('emptyHint').textContent = curKind === 'reel' ? '여기를 눌러 새 릴스 만들기 · 동영상을 끌어다 놓아도 돼요 (MP4 권장, 80MB 이하)' : '여기를 눌러 새 게시물 만들기 (사진 여러 장 → 한 게시물) · 끌어다 놓거나 붙여넣기(Ctrl+V)도 돼요';
+  $('emptyHint').textContent = curKind === 'reel' ? '여기를 눌러 새 릴스 만들기 · 동영상을 끌어다 놓아도 돼요 (MP4 권장, 80MB 이하)' : '여기를 눌러 새 게시물 만들기 (글자부터 써도 돼요) · 사진을 끌어다 놓거나 붙여넣기(Ctrl+V)도 돼요';
   const nSlides = mine.reduce((a, [p]) => a + p.slides.length, 0);
   $('count').textContent = curKind === 'reel' ? `${dateLabel(curDate)} 내 릴스 ${mine.length}개` : `${dateLabel(curDate)} 내 게시물 ${mine.length}개 · ${nSlides}장`;
   $('btnZip').disabled = !mine.length;
@@ -1565,7 +1577,7 @@ $('btnUpload').onclick = () => $('fileImgs').click();
 $('fileImgs').onchange = e => { (curKind === 'reel' ? addReels : addPosts)(e.target.files); e.target.value = ''; };
 $('fileSwap').onchange = e => { if (swapTarget) swapImage(swapTarget.pi, swapTarget.si, e.target.files); e.target.value = ''; };
 $('fileNew').onchange = e => { addOnePost(e.target.files); e.target.value = ''; };
-$('empty').onclick = () => { if (!loadingCloud) pickNewPost(); };
+$('empty').onclick = () => { if (!loadingCloud) createBlankPost(); };
 $('fileAdd').onchange = e => { if (addTarget >= 0) addSlides(addTarget, e.target.files); e.target.value = ''; };
 $('btnClearDone').onclick = () => {
   const n = posts.filter(p => p.done).length; if (!n) return;
