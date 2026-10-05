@@ -84,8 +84,11 @@ svg.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;str
 .pcap .more{color:var(--muted);font-size:12px;margin-top:2px}
 .pthumbs{display:flex;gap:8px;padding:10px 14px 12px;border-top:1px solid var(--line);overflow-x:auto;background:#0e0e0e}
 .thumb{position:relative;flex-shrink:0;width:64px;border-radius:8px;overflow:hidden;cursor:pointer;outline:2px solid transparent;outline-offset:-2px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
-.thumb.dragging{opacity:.55;outline-color:#4a9eff;transform:scale(1.06);z-index:2;cursor:grabbing}
+.thumb.dragging{opacity:.35;outline-color:#4a9eff}
+.pthumbs{position:relative}
 .pthumbs.sorting{cursor:grabbing}
+.dropbar{position:absolute;top:10px;width:3px;height:80px;border-radius:2px;background:#4a9eff;box-shadow:0 0 8px #4a9eff;pointer-events:none}
+.thumbghost{position:fixed;width:64px;height:80px;border-radius:8px;opacity:.9;pointer-events:none;z-index:200;box-shadow:0 8px 20px rgba(0,0,0,.6);outline:2px solid #4a9eff}
 .pthumbs.sorting .thumb:not(.dragging){transition:transform .12s}
 .thumb.on{outline-color:#e9e9e9}
 .thumb canvas{width:64px;height:80px;display:block}
@@ -781,47 +784,66 @@ function removeSlide(pi, si) {
   rebuild();
 }
 // 썸네일 끌어서 순서 바꾸기 (마우스: 바로 끌기 / 터치: 길게 눌렀다 끌기)
-function startThumbDrag(e, p, si, t, strip) {
-  if (e.button > 0 || e.target.closest('.x')) return;
-  const touch = e.pointerType !== 'mouse';
-  const st = { x: e.clientX, y: e.clientY, on: false, timer: 0 };
+// 끄는 동안에는 썸네일을 옮기지 않고 '들어갈 자리' 막대만 보여주다가, 놓을 때 한 번에 순서를 바꿈
+let thumbDragEnd = 0;
+function startThumbDrag(kind, e, p, si, t, strip) {
+  const pt = kind === 'touch' ? e.touches[0] : e;
+  if (kind === 'mouse' && e.button !== 0) return;
+  if (e.target.closest('.x')) return;
+  const st = { x: pt.clientX, y: pt.clientY, on: false, timer: 0, to: si, ghost: null, bar: null, auto: 0, lastX: pt.clientX };
   const thumbs = () => [...strip.querySelectorAll('.thumb')];
   const begin = () => {
     st.on = true; t.classList.add('dragging'); strip.classList.add('sorting');
-    try { t.setPointerCapture(e.pointerId); } catch (err) {}
-    if (touch && navigator.vibrate) navigator.vibrate(15);
+    if (kind === 'touch' && navigator.vibrate) navigator.vibrate(15);
+    const g = document.createElement('canvas'); g.width = 128; g.height = 160; g.className = 'thumbghost';
+    g.getContext('2d').drawImage(p.slides[si].thumb, 0, 0); document.body.appendChild(g); st.ghost = g;
+    const bar = document.createElement('div'); bar.className = 'dropbar'; strip.appendChild(bar); st.bar = bar;
+    place(st.lastX, st.y);
+  };
+  const place = (x, y) => {
+    st.lastX = x;
+    if (st.ghost) { st.ghost.style.left = (x - 32) + 'px'; st.ghost.style.top = (y - 40) + 'px'; }
+    const list = thumbs();
+    let ins = list.findIndex(el => { const b = el.getBoundingClientRect(); return x < b.left + b.width / 2; });
+    if (ins < 0) ins = list.length;
+    st.to = ins > si ? ins - 1 : ins;
+    const ref = list[ins] || list[list.length - 1];
+    if (st.bar && ref) st.bar.style.left = (ins < list.length ? ref.offsetLeft - 5 : ref.offsetLeft + ref.offsetWidth + 3) + 'px';
+  };
+  const autoScroll = () => {   // 줄 가장자리에 가까우면 자동으로 넘김
+    cancelAnimationFrame(st.auto);
+    const r = strip.getBoundingClientRect(), x = st.lastX;
+    const v = x < r.left + 40 ? -12 : x > r.right - 40 ? 12 : 0;
+    if (v && st.on) { strip.scrollLeft += v; place(x, st.y); st.auto = requestAnimationFrame(autoScroll); }
   };
   const move = ev => {
+    const q = kind === 'touch' ? ev.touches[0] : ev; if (!q) return;
     if (!st.on) {
-      const dist = Math.hypot(ev.clientX - st.x, ev.clientY - st.y);
-      if (touch) { if (dist > 10) cleanup(); return; }   // 터치는 길게 누르기 전에 움직이면 그냥 스크롤
+      const dist = Math.hypot(q.clientX - st.x, q.clientY - st.y);
+      if (kind === 'touch') { if (dist > 10) end(false); return; }   // 길게 누르기 전에 움직이면 그냥 스크롤
       if (dist < 6) return;
       begin();
     }
     ev.preventDefault();
-    const r = strip.getBoundingClientRect();   // 가장자리에서 자동 스크롤
-    if (ev.clientX < r.left + 30) strip.scrollLeft -= 10; else if (ev.clientX > r.right - 30) strip.scrollLeft += 10;
-    const list = thumbs().filter(x => x !== t);
-    const before = list.find(x => { const b = x.getBoundingClientRect(); return ev.clientX < b.left + b.width / 2; });
-    strip.insertBefore(t, before || strip.querySelector('.padd'));
+    st.y = q.clientY; place(q.clientX, q.clientY); autoScroll();
   };
-  const up = () => {
-    const was = st.on; cleanup();
-    if (!was) return;
-    t._dragged = true; setTimeout(() => { t._dragged = false; }, 0);
-    const to = thumbs().indexOf(t);
-    if (to !== si && to >= 0) { moveSlideTo(p, si, to); rebuild(); toast(`${si + 1}번째 사진을 ${to + 1}번째로 옮겼어요`); }
-  };
-  const block = ev => { if (st.on) ev.preventDefault(); };
-  function cleanup() {
-    clearTimeout(st.timer);
+  const up = () => end(true);
+  function end(drop) {
+    clearTimeout(st.timer); cancelAnimationFrame(st.auto);
+    window.removeEventListener(kind === 'touch' ? 'touchmove' : 'mousemove', move);
+    window.removeEventListener(kind === 'touch' ? 'touchend' : 'mouseup', up);
+    if (kind === 'touch') window.removeEventListener('touchcancel', up);
+    const was = st.on;
     t.classList.remove('dragging'); strip.classList.remove('sorting');
-    t.removeEventListener('pointermove', move); t.removeEventListener('pointerup', up); t.removeEventListener('pointercancel', up);
-    t.removeEventListener('touchmove', block);
+    if (st.ghost) st.ghost.remove(); if (st.bar) st.bar.remove();
+    if (!was || !drop) return;
+    thumbDragEnd = Date.now();
+    if (st.to !== si) { moveSlideTo(p, si, st.to); rebuild(); toast(`${si + 1}번째 사진을 ${st.to + 1}번째로 옮겼어요`); }
   }
-  if (touch) st.timer = setTimeout(begin, 350);
-  t.addEventListener('pointermove', move); t.addEventListener('pointerup', up); t.addEventListener('pointercancel', up);
-  t.addEventListener('touchmove', block, { passive: false });
+  if (kind === 'touch') st.timer = setTimeout(begin, 350);
+  window.addEventListener(kind === 'touch' ? 'touchmove' : 'mousemove', move, { passive: false });
+  window.addEventListener(kind === 'touch' ? 'touchend' : 'mouseup', up);
+  if (kind === 'touch') window.addEventListener('touchcancel', up);
 }
 function rebuildSel() {
   const mine = posts.map((p, i) => [p, i]).filter(([p]) => vis(p)).sort((a, b) => (a[0].order || 0) - (b[0].order || 0));
@@ -930,13 +952,15 @@ function buildCard(p, pi, ro) {
       x.onclick = e => { e.stopPropagation(); removeSlide(pi, si); };
       t.appendChild(x);
       t.title = '끌어서 순서 바꾸기 (터치: 길게 누른 뒤 끌기)';
-      t.addEventListener('pointerdown', e => startThumbDrag(e, p, si, t, strip));
+      t.addEventListener('mousedown', e => startThumbDrag('mouse', e, p, si, t, strip));
+      t.addEventListener('touchstart', e => { if (e.touches.length === 1) startThumbDrag('touch', e, p, si, t, strip); }, { passive: true });
+      t.addEventListener('dragstart', e => e.preventDefault());
       t.addEventListener('contextmenu', e => e.preventDefault());
     }
     if (isCapIdx(si)) t.insertAdjacentHTML('beforeend', '<span class="tag">캡션</span>');
     else if (!sl.img) t.insertAdjacentHTML('beforeend', '<span class="tag" style="background:#555">빈칸</span>');
     else if (sl.use !== 'orig') t.insertAdjacentHTML('beforeend', '<span class="tag ai">AI</span>');
-    t.onclick = e => { e.stopPropagation(); if (t._dragged) return; p.active = si; if (ro) renderOthers(); else { selIdx = pi; rebuild(); } };
+    t.onclick = e => { e.stopPropagation(); if (Date.now() - thumbDragEnd < 300) return; p.active = si; if (ro) renderOthers(); else { selIdx = pi; rebuild(); } };
     strip.appendChild(t);
   });
   p.el = { name: cap.querySelector('b'), txt: cap.querySelector('.txt'), status: el.querySelector('.pstatus'), strip };
