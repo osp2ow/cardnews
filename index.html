@@ -398,6 +398,7 @@ textarea.inline{position:absolute;margin:0;padding:0;border:0;border-radius:0;mi
         <button class="btn" id="mSetDefault" style="margin-top:8px;height:38px;font-size:13px" hidden>⭐ 표지 문구 스타일을 기본값으로 저장</button>
         </div>
         <div class="fxbox">
+          <label class="check" style="margin:0 0 10px" id="mLogoRow"><input type="checkbox" id="mLogoOn"> 🏷 이 장에 로고 표시</label>
           <label class="check" style="margin:0"><input type="checkbox" id="mSpeed"> 💥 테두리 집중선</label>
           <div class="two" id="mSpeedOpts" hidden style="margin-top:10px">
             <div><div class="lbl">길이·강도 (%)</div><div class="sizectl stp" data-k="speedAmt" data-step="10" data-min="10" data-max="100"><button>−</button><input type="number"><button>+</button></div></div>
@@ -717,7 +718,7 @@ function drawSlideInner(ctx, sl, post, isCover) {
   const fxSt = T && T.st && { ...STYLE_DEFAULT, ...T.st };
   if (hasText(T)) drawCoverText(ctx, T, cy => drawOverlay(ctx, T.st, cy), () => drawSpeedLines(ctx, fxSt));
   else drawSpeedLines(ctx, fxSt);
-  if (hasLogo() && (S.logoAll || isCover)) drawLogo(ctx);
+  if (hasLogo() && (S.logoAll || isCover) && !sl.noLogo) drawLogo(ctx);
 }
 
 let raf = 0;
@@ -1224,7 +1225,7 @@ function curSlide() { return posts[modal.p]?.slides[modal.s]; }
 let undoStack = [];
 function postState() {
   const p = posts[modal.p];
-  return JSON.stringify({ coverText: p.coverText, subText: p.subText || '', st: p.st, slides: p.slides.map(sl => [sl.panX, sl.panY, sl.zoom, sl.coverText ?? null, sl.subText ?? null, sl._inh ? null : (sl.st || null)]) });
+  return JSON.stringify({ coverText: p.coverText, subText: p.subText || '', st: p.st, slides: p.slides.map(sl => [sl.panX, sl.panY, sl.zoom, sl.coverText ?? null, sl.subText ?? null, sl._inh ? null : (sl.st || null), !!sl.noLogo]) });
 }
 function snap() {
   if (modal.p < 0) return;
@@ -1244,7 +1245,7 @@ function undo() {
   }
   const st = JSON.parse(top);
   p.coverText = st.coverText; p.subText = st.subText; p.st = st.st;
-  st.slides.forEach((v, i) => { const sl = p.slides[i]; if (sl) { [sl.panX, sl.panY, sl.zoom] = v; if (i > 0 && v.length > 3) { sl.coverText = v[3] ?? ''; sl.subText = v[4] ?? ''; sl.st = v[5] || null; sl._inh = !v[5]; } } });
+  st.slides.forEach((v, i) => { const sl = p.slides[i]; if (sl) { [sl.panX, sl.panY, sl.zoom] = v; if (i > 0 && v.length > 3) { sl.coverText = v[3] ?? ''; sl.subText = v[4] ?? ''; sl.st = v[5] || null; sl._inh = !v[5]; } if (v.length > 6) sl.noLogo = v[6]; } });
   const sl = curSlide();
   paintTextCtl();
   $('mZoom').value = sl.zoom; $('mZoomOut').textContent = Math.round(sl.zoom * 100) + '%';
@@ -1317,6 +1318,7 @@ function paintPosCtl() {
 $('mAlign').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; snap(); setStyle('align', b.dataset.val); paintTextCtl(); });
 $('mShadow').addEventListener('change', () => { snap(); setStyle('shadow', $('mShadow').checked); });
 $('mDivider').addEventListener('change', () => { snap(); setStyle('divider', $('mDivider').checked); });
+$('mLogoOn').addEventListener('change', () => { const sl = curSlide(); if (!sl) return; snap(); sl.noLogo = !$('mLogoOn').checked; render(); });
 $('mSpeed').addEventListener('change', () => { snap(); setStyle('speed', $('mSpeed').checked); paintTextCtl(); });
 $('mSpeedColor').addEventListener('input', () => { snapOnce(); setStyle('speedColor', $('mSpeedColor').value); });
 $('mSub').addEventListener('input', e => { snapOnce(); curT().subText = e.target.value; render(); });
@@ -1365,6 +1367,8 @@ function paintTextCtl() {
   [...$('mAlign').children].forEach(b => b.classList.toggle('on', b.dataset.val === st.align));
   paintPosCtl();
   $('mShadow').checked = !!st.shadow; $('mDivider').checked = !!st.divider;
+  { const sl = curSlide(), isCover = modal.s === 0, shown = hasLogo() && (S.logoAll || isCover);
+    $('mLogoRow').hidden = !shown && !(sl && sl.noLogo); $('mLogoOn').checked = !(sl && sl.noLogo); }
   $('mSpeed').checked = !!st.speed; $('mSpeedOpts').hidden = !st.speed; $('mSpeedColor').value = st.speedColor || '#ffffff';
   document.querySelectorAll('#mCoverWrap .stp').forEach(el => el._show());
 }
@@ -1947,7 +1951,7 @@ function drawReelOverlay(p) {
     const fxSt = { ...STYLE_DEFAULT, ...p.st };
     if (p.coverText.trim() || (p.subText || '').trim()) drawCoverText(ctx, p, cy => drawOverlay(ctx, p.st, cy), () => drawSpeedLines(ctx, fxSt));
     else drawSpeedLines(ctx, fxSt);
-    if (hasLogo()) drawLogo(ctx);
+    if (hasLogo() && !(p.slides[0] && p.slides[0].noLogo)) drawLogo(ctx);
   } finally { H = prev; }
 }
 async function downloadVideo(p) {
@@ -2111,7 +2115,7 @@ function postMeta(p) {
     st: p.st, active: p.active, source: p.source || '', done: !!p.done,
     slides: p.slides.map((sl, i) => ({ id: sl.id, use: sl.use, panX: sl.panX, panY: sl.panY, zoom: sl.zoom,
       ...(i > 0 && (sl.coverText || sl.subText || (sl.st && !sl._inh)) ? { coverText: sl.coverText || '', subText: sl.subText || '', st: sl._inh ? null : (sl.st || null) } : {}),
-      has: ['orig', 'clean', 'regen'].filter(v => sl[v]), cleanManual: !!sl.cleanManual })),
+      has: ['orig', 'clean', 'regen'].filter(v => sl[v]), cleanManual: !!sl.cleanManual, ...(sl.noLogo ? { noLogo: true } : {}) })),
     caps: p.capImgs.map(imgId)
   };
 }
@@ -2190,7 +2194,7 @@ async function postFromMeta(m, mine) {
     if (!o && (s.has || []).length) return null;   // 이미지가 아직 올라오지 않은 경우만 건너뜀
     const sl = makeSlide(o);
     sl.id = s.id; sl.clean = map[`${s.id}_clean`] || null; sl.regen = map[`${s.id}_regen`] || null;
-    sl.cleanManual = !!s.cleanManual; sl.use = sl[s.use] ? s.use : 'orig'; sl.img = sl[sl.use];
+    sl.cleanManual = !!s.cleanManual; sl.noLogo = !!s.noLogo; sl.use = sl[s.use] ? s.use : 'orig'; sl.img = sl[sl.use];
     sl.panX = s.panX || 0; sl.panY = s.panY || 0; sl.zoom = s.zoom || 1;
     if (s.st || s.coverText || s.subText) { sl.coverText = s.coverText || ''; sl.subText = s.subText || ''; if (s.st) { sl.st = { ...STYLE_DEFAULT, ...s.st }; sl._inh = false; } }
     return sl;
