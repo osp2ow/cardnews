@@ -188,6 +188,7 @@ input.daysel{color-scheme:dark}
 .sizectl button:hover{background:#161616}
 .sizectl input{width:100%;height:38px;text-align:center;background:#050505;border:1px solid var(--line2);border-radius:10px;color:var(--text);font:inherit;font-size:14px;font-weight:700;-moz-appearance:textfield}
 .sizectl input::-webkit-inner-spin-button,.sizectl input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.fxbox{margin-top:14px;padding:12px;border:1px solid var(--line);border-radius:12px}
 .textbody{animation:slideDown .18s ease-out;border-top:1px solid var(--line);margin-top:12px;padding-top:2px}
 @keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
 #mTextToggle.on{background:#e9e9e9;color:#000;border-color:#e9e9e9}
@@ -396,6 +397,13 @@ textarea.inline{position:absolute;margin:0;padding:0;border:0;border-radius:0;mi
         <button class="btn" id="mApplyNext" style="margin-top:12px;height:38px;font-size:13px">이 장 스타일을 뒷장 모두에 적용</button>
         <button class="btn" id="mSetDefault" style="margin-top:8px;height:38px;font-size:13px" hidden>⭐ 표지 문구 스타일을 기본값으로 저장</button>
         </div>
+        <div class="fxbox">
+          <label class="check" style="margin:0"><input type="checkbox" id="mSpeed"> 💥 테두리 집중선</label>
+          <div class="two" id="mSpeedOpts" hidden style="margin-top:10px">
+            <div><div class="lbl">길이·강도 (%)</div><div class="sizectl stp" data-k="speedAmt" data-step="10" data-min="10" data-max="100"><button>−</button><input type="number"><button>+</button></div></div>
+            <div><div class="lbl">선 색</div><input type="color" id="mSpeedColor"></div>
+          </div>
+        </div>
       </div>
       <div class="grow"></div>
       <div class="two" style="margin-top:14px">
@@ -443,8 +451,10 @@ const STYLE_DEFAULT = {
   subSize: 44, subColor: '#e6e6e6', subGap: 30, divider: false,
   subFont: null, subTracking: null, subLineH: 1.25, subAccent: null,
   fontW: null, subFontW: null,  // null = 폰트 기본 굵기
-  subPos: null, subOffX: 0, subOffY: 0   // 부제목 위치: null = 제목 바로 아래에 붙음, 'top'|'center'|'bottom' = 따로
+  subPos: null, subOffX: 0, subOffY: 0,   // 부제목 위치: null = 제목 바로 아래에 붙음, 'top'|'center'|'bottom' = 따로
+  speed: false, speedAmt: 50, speedColor: '#ffffff'   // 테두리 집중선 (장마다 따로, 뒷장으로 이어지지 않음)
 };
+const FX_RESET = { speed: false };
 // 새 게시물은 마지막으로 편집한 스타일을 이어받음
 let lastStyle = { ...STYLE_DEFAULT };
 try { Object.assign(lastStyle, JSON.parse(localStorage.getItem('cnm_style') || '{}')); } catch (e) {}
@@ -454,7 +464,7 @@ const DEFAULT_ADMIN = 'osp2ow@gmail.com';   // 기본 스타일을 저장할 수
 // 표지 문구에만 해당하는 스타일 항목 (부제목·공통 항목은 기본값에 넣지 않음)
 const TITLE_KEYS = ['font', 'fontSize', 'fontW', 'tracking', 'lineH', 'textColor', 'accent'];
 const pickTitle = st => Object.fromEntries(TITLE_KEYS.filter(k => k in st).map(k => [k, st[k]]));
-const newPostStyle = () => ({ ...STYLE_DEFAULT, ...lastStyle, ...(sharedStyle ? pickTitle(sharedStyle) : {}), ...POS_RESET });
+const newPostStyle = () => ({ ...STYLE_DEFAULT, ...lastStyle, ...(sharedStyle ? pickTitle(sharedStyle) : {}), ...POS_RESET, ...FX_RESET });
 const saveStyle = st => { lastStyle = { ...st }; try { localStorage.setItem('cnm_style', JSON.stringify(lastStyle)); } catch (e) {} };
 let S = { ...DEFAULTS };
 try { Object.assign(S, JSON.parse(localStorage.getItem('cnm_settings') || '{}')); } catch (e) {}
@@ -544,7 +554,7 @@ function wrapLines(ctx, paras, maxW) {
   }
   return lines;
 }
-function drawCoverText(ctx, post, beforeDraw) {
+function drawCoverText(ctx, post, beforeDraw, afterBg) {
   const st = { ...STYLE_DEFAULT, ...post.st }, f = fontOf(st.font), size = st.fontSize, subSize = st.subSize;
   const boxW = W * st.boxW / 100, PAD = (W - boxW) / 2;
   const fs = fontOf(st.subFont || st.font);
@@ -580,6 +590,7 @@ function drawCoverText(ctx, post, beforeDraw) {
     if (split) zones.add(posOf(st.subPos, st.subOffX || st.subOffY, sTop + (sH + divGap) / 2));
     zones.forEach(z => beforeDraw(z));
   }
+  if (afterBg) afterBg();   // 배경 효과(집중선)는 어둡게 깐 다음, 글자 전에
   const box = { title: [W, 0], sub: [W, 0] };
   const drawLines = (which, lines, font, sz, lh, top, color, accent, tr, offX) => {
     ctx.font = font; spacing(sz, tr);
@@ -633,6 +644,34 @@ function drawOverlay(ctx, st, pos) {
   ctx.fillStyle = g;
   top ? ctx.fillRect(0, 0, W, H * 0.6) : ctx.fillRect(0, H * 0.4, W, H * 0.6);
 }
+// 테두리 집중선: 가장자리에서 가운데로 뻗는 가는 쐐기 모양 선 (매번 같은 무늬가 나오도록 고정 난수)
+function drawSpeedLines(ctx, st) {
+  if (!st || !st.speed) return;
+  const amt = Math.max(10, Math.min(100, st.speedAmt ?? 50)) / 100;
+  let seed = 20261007;
+  const rnd = () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const cx = W / 2, cy = H / 2, rx = W / 2, ry = H / 2, far = 1.6;
+  const n = Math.round(90 + amt * 70);
+  const m = /^#?([0-9a-f]{6})$/i.exec(st.speedColor || '#ffffff');
+  const c = m ? parseInt(m[1], 16) : 0xffffff, rgb = `${c >> 16 & 255},${c >> 8 & 255},${c & 255}`;
+  ctx.save();
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + (rnd() - 0.5) * (Math.PI * 2 / n) * 1.6;
+    if (rnd() < 0.15) { rnd(); rnd(); rnd(); continue; }   // 듬성듬성 빈 곳
+    const k = 1 - amt * (0.22 + rnd() * 0.33);              // 선 끝이 들어오는 깊이 (1 = 가장자리)
+    const w = 0.004 + rnd() * 0.014;                         // 선 굵기 (각도)
+    const al = 0.35 + rnd() * 0.5;
+    const tx = cx + Math.cos(a) * rx * k, ty = cy + Math.sin(a) * ry * k;
+    const b1x = cx + Math.cos(a - w) * rx * far, b1y = cy + Math.sin(a - w) * ry * far;
+    const b2x = cx + Math.cos(a + w) * rx * far, b2y = cy + Math.sin(a + w) * ry * far;
+    const ex = cx + Math.cos(a) * rx, ey = cy + Math.sin(a) * ry;
+    const g = ctx.createLinearGradient(tx, ty, ex, ey);
+    g.addColorStop(0, `rgba(${rgb},0)`); g.addColorStop(0.45, `rgba(${rgb},${al})`); g.addColorStop(1, `rgba(${rgb},${al})`);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(b1x, b1y); ctx.lineTo(b2x, b2y); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
 const hasLogo = () => S.logoMode === 'text' ? !!(S.logoText || '').trim() : !!logo;
 function drawLogo(ctx) {
   const m = 56, col = S.logoPos[1], row = S.logoPos[0];
@@ -675,7 +714,9 @@ function drawSlideInner(ctx, sl, post, isCover) {
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   }
   const T = textOf(post, post.slides ? post.slides.indexOf(sl) : 0);
-  if (hasText(T)) drawCoverText(ctx, T, cy => drawOverlay(ctx, T.st, cy));
+  const fxSt = T && T.st && { ...STYLE_DEFAULT, ...T.st };
+  if (hasText(T)) drawCoverText(ctx, T, cy => drawOverlay(ctx, T.st, cy), () => drawSpeedLines(ctx, fxSt));
+  else drawSpeedLines(ctx, fxSt);
   if (hasLogo() && (S.logoAll || isCover)) drawLogo(ctx);
 }
 
@@ -742,7 +783,7 @@ function textOf(p, si) {
   if (sl.coverText == null) sl.coverText = '';
   if (sl.subText == null) sl.subText = '';
   // 직접 고친 적 없는 장(_inh)은 앞장 스타일을 그대로 따라감: 2장은 표지에서(위치는 기본), 3장부터는 바로 앞장에서(위치 포함)
-  if (!sl.st || sl._inh) { sl.st = si === 1 ? { ...p.st, ...POS_RESET } : { ...textOf(p, si - 1).st }; sl._inh = true; }
+  if (!sl.st || sl._inh) { sl.st = si === 1 ? { ...p.st, ...POS_RESET, ...FX_RESET } : { ...textOf(p, si - 1).st, ...FX_RESET }; sl._inh = true; }
   return sl;
 }
 // (x, y)가 제목/부제목 글자 위인지
@@ -1276,6 +1317,8 @@ function paintPosCtl() {
 $('mAlign').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; snap(); setStyle('align', b.dataset.val); paintTextCtl(); });
 $('mShadow').addEventListener('change', () => { snap(); setStyle('shadow', $('mShadow').checked); });
 $('mDivider').addEventListener('change', () => { snap(); setStyle('divider', $('mDivider').checked); });
+$('mSpeed').addEventListener('change', () => { snap(); setStyle('speed', $('mSpeed').checked); paintTextCtl(); });
+$('mSpeedColor').addEventListener('input', () => { snapOnce(); setStyle('speedColor', $('mSpeedColor').value); });
 $('mSub').addEventListener('input', e => { snapOnce(); curT().subText = e.target.value; render(); });
 // 글자 편집 항목은 버튼을 눌렀을 때만 펼침
 function setTextOpen(open) {
@@ -1322,6 +1365,7 @@ function paintTextCtl() {
   [...$('mAlign').children].forEach(b => b.classList.toggle('on', b.dataset.val === st.align));
   paintPosCtl();
   $('mShadow').checked = !!st.shadow; $('mDivider').checked = !!st.divider;
+  $('mSpeed').checked = !!st.speed; $('mSpeedOpts').hidden = !st.speed; $('mSpeedColor').value = st.speedColor || '#ffffff';
   document.querySelectorAll('#mCoverWrap .stp').forEach(el => el._show());
 }
 $('mDown').onclick = () => {
@@ -1900,7 +1944,9 @@ function drawReelOverlay(p) {
   const ctx = p.ovl.getContext('2d'), prev = H; H = RH;
   try {
     ctx.clearRect(0, 0, W, H);
-    if (p.coverText.trim() || (p.subText || '').trim()) drawCoverText(ctx, p, cy => drawOverlay(ctx, p.st, cy));
+    const fxSt = { ...STYLE_DEFAULT, ...p.st };
+    if (p.coverText.trim() || (p.subText || '').trim()) drawCoverText(ctx, p, cy => drawOverlay(ctx, p.st, cy), () => drawSpeedLines(ctx, fxSt));
+    else drawSpeedLines(ctx, fxSt);
     if (hasLogo()) drawLogo(ctx);
   } finally { H = prev; }
 }
