@@ -1959,8 +1959,83 @@ async function downloadVideo(p) {
   let blob = p._file;
   if (!blob) { const url = vidCache.get(p.video.id) || await loadVideo(p); if (url) blob = await (await fetch(url)).blob(); }
   if (!blob) { toast('영상을 아직 불러오지 못했어요'); return; }
+  const hasOvl = !!(p.coverText.trim() || (p.subText || '').trim() || (p.st && p.st.speed) || (hasLogo() && !(p.slides[0] && p.slides[0].noLogo)));
+  if (hasOvl && typeof MediaRecorder !== 'undefined' && HTMLCanvasElement.prototype.captureStream) {
+    try { await burnVideo(p, blob); return; }
+    catch (e) { console.error(e); paintReelProg(p, ''); toast('글자 넣기 실패 — 원본 영상으로 받아요 (' + (e.message || e) + ')'); }
+  }
   const ext = /quicktime/.test(blob.type) ? 'mov' : /webm/.test(blob.type) ? 'webm' : 'mp4';
   saveBlob(blob, `${fileBase(p)}.${ext}`); toast('영상 다운로드');
+}
+// 영상 위에 제목·부제목·로고·집중선(미리보기와 같은 화면)을 입혀서 새 영상으로 저장
+// 브라우저가 영상을 처음부터 끝까지 재생하면서 녹화하므로 영상 길이만큼 시간이 걸림
+let burning = false;
+async function burnVideo(p, blob) {
+  if (burning) { toast('이미 다른 영상을 만드는 중이에요'); return; }
+  burning = true;
+  const url = URL.createObjectURL(blob);
+  const v = document.createElement('video');
+  v.src = url; v.playsInline = true; v.setAttribute('playsinline', ''); v.preload = 'auto'; v.loop = false;
+  let actx = null, raf = 0, rvfc = 0, timer = 0;
+  try {
+    await waitMeta(v);
+    await renderNow();   // 글자 레이어(p.ovl) 최신으로
+    if (!p.ovl) { p.ovl = makeOverlay(); drawReelOverlay(p); }
+    const c = document.createElement('canvas'); c.width = W; c.height = RH;
+    const ctx = c.getContext('2d');
+    const draw = () => {
+      const vw = v.videoWidth || W, vh = v.videoHeight || RH, s = Math.max(W / vw, RH / vh);   // 미리보기와 같은 꽉 채우기(cover)
+      const dw = vw * s, dh = vh * s;
+      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, RH);
+      ctx.drawImage(v, (W - dw) / 2, (RH - dh) / 2, dw, dh);
+      ctx.drawImage(p.ovl, 0, 0, W, RH);
+    };
+    draw();
+    const stream = c.captureStream(30);
+    // 소리: 스피커로는 내보내지 않고 녹화에만 넣음
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      actx = new AC(); await actx.resume().catch(() => {});
+      const src = actx.createMediaElementSource(v), dest = actx.createMediaStreamDestination();
+      src.connect(dest);
+      dest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
+    } catch (e) { v.muted = true; }
+    const types = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1.4d002a,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2',   // 인스타에 가장 잘 맞는 H.264 MP4 우선
+      'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
+    const mime = types.find(t => MediaRecorder.isTypeSupported(t)) || '';
+    const rec = new MediaRecorder(stream, { ...(mime ? { mimeType: mime } : {}), videoBitsPerSecond: 10_000_000, audioBitsPerSecond: 160_000 });
+    const parts = [];
+    rec.ondataavailable = e => { if (e.data && e.data.size) parts.push(e.data); };
+    const stopped = new Promise(res => { rec.onstop = res; });
+    const dur = v.duration || 0;
+    const loop = () => {
+      draw();
+      if (dur) paintReelProg(p, `🎬 글자 넣은 영상 만드는 중 ${Math.min(99, Math.round(v.currentTime / dur * 100))}% · 이 창을 띄워 두세요`);
+      if (v.requestVideoFrameCallback) rvfc = v.requestVideoFrameCallback(loop); else raf = requestAnimationFrame(loop);
+    };
+    v.currentTime = 0;
+    await new Promise(r => { if (v.readyState >= 2) r(); else v.addEventListener('canplay', r, { once: true }); });
+    rec.start(1000);
+    const ended = new Promise((res, rej) => { v.onended = res; v.onerror = () => rej(new Error('영상 재생 오류')); });
+    await v.play();
+    loop();
+    timer = setInterval(draw, 100);   // 화면이 가려져 프레임 콜백이 멈출 때를 대비
+    await ended;
+    draw();
+    await new Promise(r => setTimeout(r, 200));
+    rec.stop(); await stopped;
+    const type = (rec.mimeType || mime || 'video/webm').split(';')[0];
+    const out = new Blob(parts, { type });
+    if (!out.size) throw new Error('녹화된 내용이 없어요');
+    saveBlob(out, `${fileBase(p)}.${/mp4/.test(type) ? 'mp4' : 'webm'}`);
+    paintReelProg(p, ''); toast('글자 넣은 영상 다운로드');
+  } finally {
+    burning = false;
+    cancelAnimationFrame(raf); clearInterval(timer);
+    if (rvfc && v.cancelVideoFrameCallback) v.cancelVideoFrameCallback(rvfc);
+    v.pause(); v.removeAttribute('src'); v.load(); URL.revokeObjectURL(url);
+    if (actx) actx.close().catch(() => {});
+  }
 }
 async function downloadCover(p) {
   await renderNow();
